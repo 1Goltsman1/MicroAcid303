@@ -83,12 +83,6 @@ if(APPLE)
         XCODE_ATTRIBUTE_CLANG_CXX_LIBRARY "libc++"
     )
 elseif(WIN32)
-    # Windows specific settings
-    # Use static runtime to avoid DLL dependencies on target machine
-    set_target_properties(MicroAcid303 PROPERTIES
-        MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
-    )
-
     # Windows-specific compiler definitions
     target_compile_definitions(MicroAcid303 PRIVATE
         _USE_MATH_DEFINES      # Enable M_PI and other math constants
@@ -99,11 +93,8 @@ elseif(WIN32)
     # MSVC compiler options
     if(MSVC)
         target_compile_options(MicroAcid303 PRIVATE
-            /W4           # Warning level 4
+            /W3           # Warning level 3
             /wd4100       # Unreferenced formal parameter (common in JUCE)
-            /wd4244       # Conversion warnings
-            /wd4267       # Size_t to int conversion
-            /wd4458       # Declaration hides class member
             /MP           # Multi-processor compilation for faster builds
         )
     endif()
