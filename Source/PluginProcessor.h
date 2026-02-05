@@ -2,6 +2,9 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_dsp/juce_dsp.h>
+#include <juce_audio_devices/juce_audio_devices.h>
+#include <atomic>
+#include <array>
 #include "core/Parameters.h"
 #include "dsp/Oscillator.h"
 #include "dsp/Envelope.h"
@@ -49,6 +52,25 @@ public:
 
     juce::AudioProcessorValueTreeState& getValueTreeState() { return m_parameters; }
 
+    //==============================================================================
+    // Visualization data access (thread-safe)
+    float getOutputPeakL() const { return m_outputPeakL.load(); }
+    float getOutputPeakR() const { return m_outputPeakR.load(); }
+    float getEnvelopeLevel() const { return m_envelopeLevel.load(); }
+    float getFilterCutoff() const { return m_currentCutoff.load(); }
+    float getFilterResonance() const { return m_currentResonance.load(); }
+    bool isNoteActive() const { return m_isNoteActive; }
+
+    // Waveform buffer for oscilloscope (lock-free read)
+    static constexpr int WAVEFORM_BUFFER_SIZE = 512;
+    const std::array<float, WAVEFORM_BUFFER_SIZE>& getWaveformBuffer() const { return m_waveformBuffer; }
+    int getWaveformWriteIndex() const { return m_waveformWriteIndex.load(); }
+
+    //==============================================================================
+    // MIDI injection for standalone keyboard
+    void injectMidiMessage(const juce::MidiMessage& message);
+    juce::MidiKeyboardState& getKeyboardState() { return m_keyboardState; }
+
 private:
     void handleMidiMessage(const juce::MidiMessage& message);
     void updateOscillatorParameters();
@@ -82,6 +104,22 @@ private:
     // Sample rate storage
     double m_sampleRate = 44100.0;
     int m_samplesPerBlock = 512;
+
+    //==============================================================================
+    // Visualization data (thread-safe atomic values)
+    std::atomic<float> m_outputPeakL{0.0f};
+    std::atomic<float> m_outputPeakR{0.0f};
+    std::atomic<float> m_envelopeLevel{0.0f};
+    std::atomic<float> m_currentCutoff{1000.0f};
+    std::atomic<float> m_currentResonance{0.5f};
+
+    // Waveform buffer for oscilloscope
+    std::array<float, WAVEFORM_BUFFER_SIZE> m_waveformBuffer{};
+    std::atomic<int> m_waveformWriteIndex{0};
+
+    // MIDI keyboard state for standalone
+    juce::MidiKeyboardState m_keyboardState;
+    juce::MidiBuffer m_injectedMidi;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MicroAcid303AudioProcessor)
 };

@@ -321,15 +321,21 @@ juce::Font MicroAcidLookAndFeel::getLabelFont(juce::Label&)
 //==============================================================================
 
 MicroAcid303AudioProcessorEditor::MicroAcid303AudioProcessorEditor (MicroAcid303AudioProcessor& p)
-    : AudioProcessorEditor (&p), m_audioProcessor (p)
+    : AudioProcessorEditor (&p),
+      m_audioProcessor (p),
+      m_midiKeyboard (p.getKeyboardState(), juce::MidiKeyboardComponent::horizontalKeyboard)
 {
     // Set the custom look and feel
     setLookAndFeel(&m_microAcidLookAndFeel);
 
-    // Set default editor size - compact hardware proportions (can be resized)
-    setSize(920, 620);
+    // Set default editor size - taller to accommodate keyboard and visualizations
+    setSize(920, 750);
     setResizable(true, true);
-    setResizeLimits(800, 540, 1400, 1000);
+    setResizeLimits(800, 650, 1400, 1100);
+
+    // Enable keyboard focus for QWERTY input
+    setWantsKeyboardFocus(true);
+    addKeyListener(this);
 
     //==============================================================================
     // OSCILLATOR SECTION
@@ -628,12 +634,29 @@ MicroAcid303AudioProcessorEditor::MicroAcid303AudioProcessorEditor (MicroAcid303
     m_outputGainValueLabel.setFont(juce::Font(juce::FontOptions(10.0f)));
     addAndMakeVisible(m_outputGainValueLabel);
 
-    // Start timer for updating value labels
+    //==============================================================================
+    // MIDI KEYBOARD SECTION (v1.1)
+    m_midiKeyboard.setName("Keyboard");
+    m_midiKeyboard.setAvailableRange(36, 84);  // C2 to C6 (4 octaves)
+    m_midiKeyboard.setOctaveForMiddleC(4);
+    m_midiKeyboard.setKeyWidth(20.0f);
+    m_midiKeyboard.setColour(juce::MidiKeyboardComponent::whiteNoteColourId, juce::Colour(0xffeeeedd));
+    m_midiKeyboard.setColour(juce::MidiKeyboardComponent::blackNoteColourId, juce::Colour(0xff2a2a2a));
+    m_midiKeyboard.setColour(juce::MidiKeyboardComponent::keySeparatorLineColourId, juce::Colour(0xff3a3a3a));
+    m_midiKeyboard.setColour(juce::MidiKeyboardComponent::mouseOverKeyOverlayColourId, juce::Colour(0x40ff6600));
+    m_midiKeyboard.setColour(juce::MidiKeyboardComponent::keyDownOverlayColourId, juce::Colour(0x80ff6600));
+    addAndMakeVisible(m_midiKeyboard);
+
+    setupLabel(m_keyboardLabel, "KEYBOARD (Use QWERTY: Z-M = C3-B3, Q-P = C4-B4)");
+    addAndMakeVisible(m_keyboardLabel);
+
+    // Start timer for updating value labels and visualizations
     startTimerHz(30);
 }
 
 MicroAcid303AudioProcessorEditor::~MicroAcid303AudioProcessorEditor()
 {
+    removeKeyListener(this);
     setLookAndFeel(nullptr);
 }
 
@@ -771,6 +794,46 @@ void MicroAcid303AudioProcessorEditor::paint (juce::Graphics& g)
     bottomRow.removeFromLeft(8);
     auto outputSection = bottomRow;
     drawSection(g, outputSection, "OUTPUT");
+
+    //==============================================================================
+    // VISUALIZATION & KEYBOARD SECTIONS (v1.1)
+    // These are drawn after resized() calculates the bounds
+    // The actual drawing happens via the visualization methods called in paint()
+
+    // Calculate visualization area (below bottom row, above keyboard)
+    auto fullBounds = getLocalBounds().withTrimmedTop(60).reduced(10);
+    int usedHeight = (fullBounds.getHeight() / 3 - 4) + 8 +  // top row
+                     (fullBounds.getHeight() / 3 - 4) + 8 +  // middle row (arp)
+                     (fullBounds.getHeight() / 3);            // bottom row
+
+    auto lowerArea = getLocalBounds().withTrimmedTop(60 + usedHeight + 20).reduced(10);
+
+    // Draw visualization panel background
+    auto vizArea = lowerArea.removeFromTop(80);
+    drawSection(g, vizArea, "ANALYZER");
+
+    // Draw oscilloscope
+    auto oscBounds = vizArea.reduced(12, 30);
+    auto scopeArea = oscBounds.removeFromLeft(oscBounds.getWidth() / 2 - 20);
+    drawOscilloscope(g, scopeArea);
+
+    // Draw level meters
+    auto metersArea = oscBounds.removeFromLeft(40);
+    metersArea.reduce(4, 4);
+    auto meterL = metersArea.removeFromLeft(14);
+    metersArea.removeFromLeft(4);
+    auto meterR = metersArea.removeFromLeft(14);
+    drawLevelMeter(g, meterL, m_displayPeakL, true);
+    drawLevelMeter(g, meterR, m_displayPeakR, false);
+
+    // Draw filter curve
+    oscBounds.removeFromLeft(10);
+    drawFilterCurve(g, oscBounds);
+
+    // Draw keyboard section background
+    lowerArea.removeFromTop(8);
+    auto keyboardArea = lowerArea;
+    drawSection(g, keyboardArea, "KEYBOARD (QWERTY: Z-M & Q-P)");
 }
 
 void MicroAcid303AudioProcessorEditor::resized()
@@ -942,6 +1005,23 @@ void MicroAcid303AudioProcessorEditor::resized()
     outputSection.removeFromTop(4);
     m_outputGainLabel.setBounds(outputSection.removeFromTop(16));
     m_outputGainValueLabel.setBounds(outputSection.removeFromTop(14));
+
+    //==============================================================================
+    // KEYBOARD SECTION (v1.1) - positioned at bottom of window
+    auto fullBounds = getLocalBounds().withTrimmedTop(60).reduced(10);
+
+    // Calculate space used by synth controls
+    int synthControlsHeight = (fullBounds.getHeight() / 3 - 4) * 3 + 16; // 3 rows + spacing
+
+    // Keyboard goes at the very bottom
+    auto keyboardBounds = getLocalBounds().reduced(10);
+    keyboardBounds = keyboardBounds.removeFromBottom(70).reduced(12, 8);
+    m_midiKeyboard.setBounds(keyboardBounds);
+
+    // Keyboard label above it
+    auto labelBounds = getLocalBounds().reduced(10);
+    labelBounds = labelBounds.removeFromBottom(90);
+    m_keyboardLabel.setBounds(labelBounds.removeFromTop(16).reduced(10, 0));
 }
 
 void MicroAcid303AudioProcessorEditor::timerCallback()
@@ -1009,6 +1089,22 @@ void MicroAcid303AudioProcessorEditor::timerCallback()
     m_arpSwingValueLabel.setText(
         juce::String(int(params.getRawParameterValue(MicroAcidParameters::IDs::ARP_SWING)->load() * 100)) + " %",
         juce::dontSendNotification);
+
+    //==============================================================================
+    // UPDATE VISUALIZATION DATA (v1.1)
+    m_displayPeakL = m_audioProcessor.getOutputPeakL();
+    m_displayPeakR = m_audioProcessor.getOutputPeakR();
+
+    // Copy waveform data for oscilloscope
+    const auto& waveformBuffer = m_audioProcessor.getWaveformBuffer();
+    int writeIdx = m_audioProcessor.getWaveformWriteIndex();
+    for (int i = 0; i < 512; ++i)
+    {
+        m_oscilloscopeData[i] = waveformBuffer[(writeIdx + i) % 512];
+    }
+
+    // Trigger repaint for visualizations
+    repaint();
 }
 
 //==============================================================================
@@ -1125,4 +1221,271 @@ void MicroAcid303AudioProcessorEditor::drawSection(juce::Graphics& g, juce::Rect
     drawScrew((float)bounds.getRight() - screwInset, (float)bounds.getY() + screwInset);
     drawScrew((float)bounds.getX() + screwInset, (float)bounds.getBottom() - screwInset);
     drawScrew((float)bounds.getRight() - screwInset, (float)bounds.getBottom() - screwInset);
+}
+
+//==============================================================================
+// VISUALIZATION DRAWING METHODS (v1.1)
+//==============================================================================
+
+void MicroAcid303AudioProcessorEditor::drawOscilloscope(juce::Graphics& g, juce::Rectangle<int> bounds)
+{
+    // Draw background
+    g.setColour(juce::Colour(0xff1a1a1a));
+    g.fillRoundedRectangle(bounds.toFloat(), 4.0f);
+
+    // Draw border
+    g.setColour(juce::Colour(0xff3a3a3a));
+    g.drawRoundedRectangle(bounds.toFloat(), 4.0f, 1.0f);
+
+    // Draw grid lines
+    g.setColour(juce::Colour(0xff2a2a2a));
+    int gridLines = 4;
+    for (int i = 1; i < gridLines; ++i)
+    {
+        float y = bounds.getY() + (bounds.getHeight() * i / gridLines);
+        g.drawLine((float)bounds.getX() + 2, y, (float)bounds.getRight() - 2, y, 1.0f);
+    }
+
+    // Draw center line
+    g.setColour(juce::Colour(0xff3a3a3a));
+    float centerY = bounds.getCentreY();
+    g.drawLine((float)bounds.getX() + 2, centerY, (float)bounds.getRight() - 2, centerY, 1.0f);
+
+    // Draw waveform
+    juce::Path waveformPath;
+    float w = (float)bounds.getWidth() - 4;
+    float h = (float)bounds.getHeight() - 4;
+    float xStart = (float)bounds.getX() + 2;
+    float yCenter = (float)bounds.getCentreY();
+
+    bool firstPoint = true;
+    for (int i = 0; i < 512; ++i)
+    {
+        float x = xStart + (w * i / 512.0f);
+        float sample = m_oscilloscopeData[i];
+        float y = yCenter - (sample * h * 0.45f);
+
+        if (firstPoint)
+        {
+            waveformPath.startNewSubPath(x, y);
+            firstPoint = false;
+        }
+        else
+        {
+            waveformPath.lineTo(x, y);
+        }
+    }
+
+    // Glow effect
+    g.setColour(juce::Colour(0xff00aaff).withAlpha(0.3f));
+    g.strokePath(waveformPath, juce::PathStrokeType(3.0f));
+
+    // Main waveform line
+    g.setColour(juce::Colour(0xff00aaff));
+    g.strokePath(waveformPath, juce::PathStrokeType(1.5f));
+}
+
+void MicroAcid303AudioProcessorEditor::drawLevelMeter(juce::Graphics& g, juce::Rectangle<int> bounds, float level, bool isLeft)
+{
+    juce::ignoreUnused(isLeft);
+
+    // Draw background
+    g.setColour(juce::Colour(0xff1a1a1a));
+    g.fillRoundedRectangle(bounds.toFloat(), 2.0f);
+
+    // Draw border
+    g.setColour(juce::Colour(0xff3a3a3a));
+    g.drawRoundedRectangle(bounds.toFloat(), 2.0f, 1.0f);
+
+    // Calculate meter height
+    float meterLevel = juce::jlimit(0.0f, 1.0f, level);
+    int meterHeight = (int)(bounds.getHeight() * meterLevel);
+    auto meterBounds = bounds.removeFromBottom(meterHeight).reduced(2, 2);
+
+    // Draw meter fill with gradient (green to yellow to red)
+    if (meterHeight > 0)
+    {
+        juce::ColourGradient gradient(
+            juce::Colour(0xff00ff00), 0, (float)bounds.getBottom(),
+            juce::Colour(0xffff0000), 0, (float)bounds.getY(), false);
+        gradient.addColour(0.7, juce::Colour(0xffffff00));
+        g.setGradientFill(gradient);
+        g.fillRoundedRectangle(meterBounds.toFloat(), 1.0f);
+    }
+
+    // Peak indicator
+    if (level > 0.9f)
+    {
+        g.setColour(juce::Colour(0xffff0000));
+        g.fillRoundedRectangle(bounds.removeFromTop(4).reduced(2, 0).toFloat(), 1.0f);
+    }
+}
+
+void MicroAcid303AudioProcessorEditor::drawFilterCurve(juce::Graphics& g, juce::Rectangle<int> bounds)
+{
+    // Draw background
+    g.setColour(juce::Colour(0xff1a1a1a));
+    g.fillRoundedRectangle(bounds.toFloat(), 4.0f);
+
+    // Draw border
+    g.setColour(juce::Colour(0xff3a3a3a));
+    g.drawRoundedRectangle(bounds.toFloat(), 4.0f, 1.0f);
+
+    // Get filter parameters
+    float cutoff = m_audioProcessor.getFilterCutoff();
+    float resonance = m_audioProcessor.getFilterResonance();
+
+    // Draw filter response curve
+    juce::Path filterPath;
+    float w = (float)bounds.getWidth() - 4;
+    float h = (float)bounds.getHeight() - 4;
+    float xStart = (float)bounds.getX() + 2;
+    float yBottom = (float)bounds.getBottom() - 2;
+
+    // Normalize cutoff to 0-1 range (20-4000 Hz, logarithmic)
+    float normalizedCutoff = std::log10(cutoff / 20.0f) / std::log10(4000.0f / 20.0f);
+    normalizedCutoff = juce::jlimit(0.0f, 1.0f, normalizedCutoff);
+
+    filterPath.startNewSubPath(xStart, yBottom - h * 0.8f);
+
+    for (int i = 0; i <= 100; ++i)
+    {
+        float freqNorm = i / 100.0f;
+        float x = xStart + w * freqNorm;
+
+        // Simple lowpass response approximation
+        float response = 1.0f;
+        if (freqNorm > normalizedCutoff)
+        {
+            float diff = freqNorm - normalizedCutoff;
+            response = std::exp(-diff * 10.0f);
+        }
+
+        // Add resonance peak
+        float resPeak = std::exp(-std::pow((freqNorm - normalizedCutoff) * 10.0f, 2.0f)) * resonance * 0.5f;
+        response += resPeak;
+        response = juce::jlimit(0.0f, 1.2f, response);
+
+        float y = yBottom - h * response * 0.7f;
+        filterPath.lineTo(x, y);
+    }
+
+    // Glow
+    g.setColour(juce::Colour(0xffff6600).withAlpha(0.3f));
+    g.strokePath(filterPath, juce::PathStrokeType(3.0f));
+
+    // Main line
+    g.setColour(juce::Colour(0xffff6600));
+    g.strokePath(filterPath, juce::PathStrokeType(1.5f));
+
+    // Label
+    g.setColour(juce::Colours::white.withAlpha(0.7f));
+    g.setFont(juce::Font(juce::FontOptions(10.0f)));
+    g.drawText(juce::String((int)cutoff) + " Hz", bounds.reduced(4), juce::Justification::topLeft);
+}
+
+//==============================================================================
+// QWERTY KEYBOARD INPUT (v1.1)
+//==============================================================================
+
+int MicroAcid303AudioProcessorEditor::getKeyboardNoteForKey(int keyCode)
+{
+    // Lower row: Z-M = C3 (48) to B3 (59)
+    // Upper row: Q-P = C4 (60) to B4 (71)
+    switch (keyCode)
+    {
+        // Lower octave (C3-B3)
+        case 'Z': return 48;  // C3
+        case 'S': return 49;  // C#3
+        case 'X': return 50;  // D3
+        case 'D': return 51;  // D#3
+        case 'C': return 52;  // E3
+        case 'V': return 53;  // F3
+        case 'G': return 54;  // F#3
+        case 'B': return 55;  // G3
+        case 'H': return 56;  // G#3
+        case 'N': return 57;  // A3
+        case 'J': return 58;  // A#3
+        case 'M': return 59;  // B3
+
+        // Upper octave (C4-B4)
+        case 'Q': return 60;  // C4
+        case '2': return 61;  // C#4
+        case 'W': return 62;  // D4
+        case '3': return 63;  // D#4
+        case 'E': return 64;  // E4
+        case 'R': return 65;  // F4
+        case '5': return 66;  // F#4
+        case 'T': return 67;  // G4
+        case '6': return 68;  // G#4
+        case 'Y': return 69;  // A4
+        case '7': return 70;  // A#4
+        case 'U': return 71;  // B4
+        case 'I': return 72;  // C5
+        case '9': return 73;  // C#5
+        case 'O': return 74;  // D5
+        case '0': return 75;  // D#5
+        case 'P': return 76;  // E5
+
+        default: return -1;
+    }
+}
+
+bool MicroAcid303AudioProcessorEditor::keyPressed(const juce::KeyPress& key, juce::Component*)
+{
+    int keyCode = key.getTextCharacter();
+    if (keyCode >= 'a' && keyCode <= 'z')
+        keyCode = keyCode - 'a' + 'A';  // Convert to uppercase
+
+    int note = getKeyboardNoteForKey(keyCode);
+    if (note >= 0 && m_keysDown.find(note) == m_keysDown.end())
+    {
+        m_keysDown.insert(note);
+        auto message = juce::MidiMessage::noteOn(1, note, (juce::uint8)100);
+        m_audioProcessor.getKeyboardState().noteOn(1, note, 1.0f);
+        return true;
+    }
+    return false;
+}
+
+bool MicroAcid303AudioProcessorEditor::keyStateChanged(bool isKeyDown, juce::Component*)
+{
+    if (!isKeyDown)
+    {
+        // Check which keys were released
+        std::vector<int> toRemove;
+        for (int note : m_keysDown)
+        {
+            // Check if the corresponding key is still pressed
+            int keyCode = 0;
+            // Reverse lookup - find key for note
+            for (int k = 'A'; k <= 'Z'; ++k)
+            {
+                if (getKeyboardNoteForKey(k) == note)
+                {
+                    keyCode = k;
+                    break;
+                }
+            }
+            for (int k = '0'; k <= '9'; ++k)
+            {
+                if (getKeyboardNoteForKey(k) == note)
+                {
+                    keyCode = k;
+                    break;
+                }
+            }
+
+            if (keyCode != 0 && !juce::KeyPress::isKeyCurrentlyDown(keyCode))
+            {
+                toRemove.push_back(note);
+                m_audioProcessor.getKeyboardState().noteOff(1, note, 1.0f);
+            }
+        }
+        for (int note : toRemove)
+            m_keysDown.erase(note);
+
+        return !toRemove.empty();
+    }
+    return false;
 }

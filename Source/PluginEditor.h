@@ -2,6 +2,9 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_gui_basics/juce_gui_basics.h>
+#include <juce_audio_utils/juce_audio_utils.h>
+#include <set>
+#include <array>
 #include "PluginProcessor.h"
 
 /**
@@ -46,7 +49,8 @@ private:
  * - 303 inspired retro aesthetic
  */
 class MicroAcid303AudioProcessorEditor : public juce::AudioProcessorEditor,
-                                            private juce::Timer
+                                            private juce::Timer,
+                                            private juce::KeyListener
 {
 public:
     MicroAcid303AudioProcessorEditor (MicroAcid303AudioProcessor&);
@@ -57,6 +61,10 @@ public:
     void resized() override;
     void timerCallback() override;
 
+    // KeyListener for QWERTY keyboard input
+    bool keyPressed(const juce::KeyPress& key, juce::Component* originatingComponent) override;
+    bool keyStateChanged(bool isKeyDown, juce::Component* originatingComponent) override;
+
 private:
     //==============================================================================
     // Helper methods
@@ -64,6 +72,15 @@ private:
     void setupLinearSlider(juce::Slider& slider, const juce::String& suffix = "");
     void setupLabel(juce::Label& label, const juce::String& text);
     void drawSection(juce::Graphics& g, juce::Rectangle<int> bounds, const juce::String& title);
+
+    // Visualization drawing methods
+    void drawOscilloscope(juce::Graphics& g, juce::Rectangle<int> bounds);
+    void drawLevelMeter(juce::Graphics& g, juce::Rectangle<int> bounds, float level, bool isLeft);
+    void drawFilterCurve(juce::Graphics& g, juce::Rectangle<int> bounds);
+
+    // QWERTY keyboard mapping
+    int getKeyboardNoteForKey(int keyCode);
+    std::set<int> m_keysDown;  // Track which keys are pressed
 
     //==============================================================================
     // Reference to the processor
@@ -185,6 +202,17 @@ private:
     juce::Label m_outputGainLabel;
     juce::Label m_outputGainValueLabel;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> m_outputGainAttachment;
+
+    //==============================================================================
+    // MIDI KEYBOARD SECTION (v1.1)
+    juce::MidiKeyboardComponent m_midiKeyboard;
+    juce::Label m_keyboardLabel;
+
+    //==============================================================================
+    // VISUALIZATION DATA (v1.1)
+    float m_displayPeakL = 0.0f;
+    float m_displayPeakR = 0.0f;
+    std::array<float, 512> m_oscilloscopeData{};
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MicroAcid303AudioProcessorEditor)
 };

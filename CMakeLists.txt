@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.22)
 
 # Project definition
-project(MicroAcid303 VERSION 1.0.0)
+project(MicroAcid303 VERSION 1.1.0)
 
 # C++ Standard
 set(CMAKE_CXX_STANDARD 17)
@@ -35,7 +35,7 @@ juce_add_plugin(MicroAcid303
     NEEDS_MIDI_INPUT TRUE
     NEEDS_MIDI_OUTPUT FALSE
     IS_MIDI_EFFECT FALSE
-    EDITOR_WANTS_KEYBOARD_FOCUS FALSE
+    EDITOR_WANTS_KEYBOARD_FOCUS TRUE
 
     # Installation
     COPY_PLUGIN_AFTER_BUILD TRUE
@@ -70,6 +70,7 @@ target_compile_definitions(MicroAcid303 PUBLIC
 target_link_libraries(MicroAcid303 PRIVATE
     juce::juce_audio_utils
     juce::juce_audio_processors
+    juce::juce_audio_devices
     juce::juce_dsp
     juce::juce_gui_basics
 PUBLIC

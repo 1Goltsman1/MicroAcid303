@@ -178,6 +178,9 @@ void MicroAcid303AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
         m_parameters.getParameter(MicroAcidParameters::IDs::ARP_ENABLED));
     bool arpEnabled = arpEnabledParam ? arpEnabledParam->get() : false;
 
+    // Merge MIDI from keyboard state (for standalone)
+    m_keyboardState.processNextMidiBuffer(midiMessages, 0, buffer.getNumSamples(), true);
+
     // Process MIDI (with or without arpeggiator)
     for (const auto metadata : midiMessages)
     {
@@ -275,6 +278,51 @@ void MicroAcid303AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     // Copy mono to stereo if needed
     if (totalNumOutputChannels > 1)
         buffer.copyFrom(1, 0, buffer, 0, 0, numSamples);
+
+    //==============================================================================
+    // VISUALIZATION DATA CAPTURE (thread-safe)
+
+    // Calculate peak levels
+    float peakL = 0.0f;
+    float peakR = 0.0f;
+    for (int i = 0; i < numSamples; ++i)
+    {
+        float absL = std::abs(buffer.getSample(0, i));
+        if (absL > peakL) peakL = absL;
+        if (totalNumOutputChannels > 1)
+        {
+            float absR = std::abs(buffer.getSample(1, i));
+            if (absR > peakR) peakR = absR;
+        }
+    }
+
+    // Store peak with decay for smooth metering
+    float decay = 0.95f;
+    float currentPeakL = m_outputPeakL.load();
+    float currentPeakR = m_outputPeakR.load();
+    m_outputPeakL.store(peakL > currentPeakL ? peakL : currentPeakL * decay);
+    m_outputPeakR.store(peakR > currentPeakR ? peakR : currentPeakR * decay);
+
+    // Store envelope level for visualization
+    if (m_envelope)
+        m_envelopeLevel.store(m_envelope->getCurrentLevel());
+
+    // Store filter parameters for visualization
+    auto* cutoffParam = dynamic_cast<juce::AudioParameterFloat*>(
+        m_parameters.getParameter(MicroAcidParameters::IDs::CUTOFF));
+    auto* resonanceParam = dynamic_cast<juce::AudioParameterFloat*>(
+        m_parameters.getParameter(MicroAcidParameters::IDs::RESONANCE));
+    if (cutoffParam) m_currentCutoff.store(cutoffParam->get());
+    if (resonanceParam) m_currentResonance.store(resonanceParam->get());
+
+    // Update waveform buffer (circular, for oscilloscope)
+    int writeIdx = m_waveformWriteIndex.load();
+    int samplesToWrite = std::min(numSamples, WAVEFORM_BUFFER_SIZE);
+    for (int i = 0; i < samplesToWrite; ++i)
+    {
+        m_waveformBuffer[(writeIdx + i) % WAVEFORM_BUFFER_SIZE] = buffer.getSample(0, i);
+    }
+    m_waveformWriteIndex.store((writeIdx + samplesToWrite) % WAVEFORM_BUFFER_SIZE);
 
     m_samplePosition += numSamples;
 }
@@ -487,6 +535,12 @@ void MicroAcid303AudioProcessor::updateArpeggiatorParameters()
 float MicroAcid303AudioProcessor::midiNoteToFrequency(int midiNote)
 {
     return 440.0f * std::pow(2.0f, (midiNote - 69) / 12.0f);
+}
+
+void MicroAcid303AudioProcessor::injectMidiMessage(const juce::MidiMessage& message)
+{
+    // This allows the editor's keyboard to send MIDI to the processor
+    m_keyboardState.processNextMidiEvent(message);
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
