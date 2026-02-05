@@ -327,9 +327,9 @@ MicroAcid303AudioProcessorEditor::MicroAcid303AudioProcessorEditor (MicroAcid303
     setLookAndFeel(&m_microAcidLookAndFeel);
 
     // Set default editor size - compact hardware proportions (can be resized)
-    setSize(920, 560);
+    setSize(920, 620);
     setResizable(true, true);
-    setResizeLimits(800, 480, 1400, 900);
+    setResizeLimits(800, 540, 1400, 1000);
 
     //==============================================================================
     // OSCILLATOR SECTION
@@ -506,6 +506,67 @@ MicroAcid303AudioProcessorEditor::MicroAcid303AudioProcessorEditor (MicroAcid303
     addAndMakeVisible(m_fxMixValueLabel);
 
     //==============================================================================
+    // ARPEGGIATOR SECTION
+
+    m_arpEnabledButton.setButtonText("ARP ON");
+    m_arpEnabledButton.setClickingTogglesState(true);
+    addAndMakeVisible(m_arpEnabledButton);
+    m_arpEnabledAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
+        m_audioProcessor.getValueTreeState(), MicroAcidParameters::IDs::ARP_ENABLED, m_arpEnabledButton);
+
+    addAndMakeVisible(m_arpModeSelector);
+    m_arpModeSelector.setTooltip("Arpeggiator mode: Up, Down, Up/Down, Random, etc.");
+    m_arpModeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(
+        m_audioProcessor.getValueTreeState(), MicroAcidParameters::IDs::ARP_MODE, m_arpModeSelector);
+
+    setupLabel(m_arpModeLabel, "MODE");
+    addAndMakeVisible(m_arpModeLabel);
+
+    addAndMakeVisible(m_arpDivisionSelector);
+    m_arpDivisionSelector.setTooltip("Note division: 1/4, 1/8, 1/16, etc.");
+    m_arpDivisionAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(
+        m_audioProcessor.getValueTreeState(), MicroAcidParameters::IDs::ARP_DIVISION, m_arpDivisionSelector);
+
+    setupLabel(m_arpDivisionLabel, "RATE");
+    addAndMakeVisible(m_arpDivisionLabel);
+
+    setupRotarySlider(m_arpGateSlider);
+    m_arpGateSlider.setTooltip("Gate length (note duration)");
+    m_arpGateAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
+        m_audioProcessor.getValueTreeState(), MicroAcidParameters::IDs::ARP_GATE, m_arpGateSlider);
+
+    setupLabel(m_arpGateLabel, "GATE");
+    addAndMakeVisible(m_arpGateLabel);
+
+    m_arpGateValueLabel.setJustificationType(juce::Justification::centred);
+    m_arpGateValueLabel.setFont(juce::Font(juce::FontOptions(10.0f)));
+    addAndMakeVisible(m_arpGateValueLabel);
+
+    setupRotarySlider(m_arpOctavesSlider);
+    m_arpOctavesSlider.setTooltip("Octave range (1-4)");
+    m_arpOctavesAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
+        m_audioProcessor.getValueTreeState(), MicroAcidParameters::IDs::ARP_OCTAVES, m_arpOctavesSlider);
+
+    setupLabel(m_arpOctavesLabel, "OCT");
+    addAndMakeVisible(m_arpOctavesLabel);
+
+    m_arpOctavesValueLabel.setJustificationType(juce::Justification::centred);
+    m_arpOctavesValueLabel.setFont(juce::Font(juce::FontOptions(10.0f)));
+    addAndMakeVisible(m_arpOctavesValueLabel);
+
+    setupRotarySlider(m_arpSwingSlider);
+    m_arpSwingSlider.setTooltip("Swing amount");
+    m_arpSwingAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
+        m_audioProcessor.getValueTreeState(), MicroAcidParameters::IDs::ARP_SWING, m_arpSwingSlider);
+
+    setupLabel(m_arpSwingLabel, "SWING");
+    addAndMakeVisible(m_arpSwingLabel);
+
+    m_arpSwingValueLabel.setJustificationType(juce::Justification::centred);
+    m_arpSwingValueLabel.setFont(juce::Font(juce::FontOptions(10.0f)));
+    addAndMakeVisible(m_arpSwingValueLabel);
+
+    //==============================================================================
     // OUTPUT SECTION
 
     setupLinearSlider(m_outputGainSlider);
@@ -517,7 +578,7 @@ MicroAcid303AudioProcessorEditor::MicroAcid303AudioProcessorEditor (MicroAcid303
     addAndMakeVisible(m_outputGainLabel);
 
     m_outputGainValueLabel.setJustificationType(juce::Justification::centred);
-    m_outputGainValueLabel.setFont(juce::Font(juce::FontOptions(11.0f)));
+    m_outputGainValueLabel.setFont(juce::Font(juce::FontOptions(10.0f)));
     addAndMakeVisible(m_outputGainValueLabel);
 
     // Start timer for updating value labels
@@ -626,162 +687,211 @@ void MicroAcid303AudioProcessorEditor::paint (juce::Graphics& g)
     g.drawLine(decorX, (float)titleBounds.getCentreY() - 15.0f, decorX, (float)titleBounds.getCentreY() + 15.0f, 3.0f);
 
     // ========== PANEL SECTIONS ==========
-    auto bounds = getLocalBounds().withTrimmedTop(60).reduced(15);
+    auto bounds = getLocalBounds().withTrimmedTop(60).reduced(10);
 
-    // Top row sections
-    auto topRow = bounds.removeFromTop(bounds.getHeight() / 2 - 8);
+    // Top row: OSCILLATOR, FILTER, ENVELOPE
+    auto topRow = bounds.removeFromTop(bounds.getHeight() / 3 - 4);
 
-    auto oscSection = topRow.removeFromLeft(topRow.getWidth() / 3 - 8);
+    auto oscSection = topRow.removeFromLeft(topRow.getWidth() / 3 - 6);
     drawSection(g, oscSection, "OSCILLATOR");
 
-    topRow.removeFromLeft(12);
-    auto filterSection = topRow.removeFromLeft(topRow.getWidth() / 2 - 8);
+    topRow.removeFromLeft(8);
+    auto filterSection = topRow.removeFromLeft(topRow.getWidth() / 2 - 4);
     drawSection(g, filterSection, "FILTER");
 
-    topRow.removeFromLeft(12);
+    topRow.removeFromLeft(8);
     auto envSection = topRow;
     drawSection(g, envSection, "ENVELOPE");
 
-    bounds.removeFromTop(12);
+    bounds.removeFromTop(8);
 
-    // Bottom row sections
+    // Middle row: ARPEGGIATOR (full width)
+    auto middleRow = bounds.removeFromTop(bounds.getHeight() / 2 - 4);
+    drawSection(g, middleRow, "ARPEGGIATOR");
+
+    bounds.removeFromTop(8);
+
+    // Bottom row: OVERDRIVE, EFFECTS, OUTPUT
     auto bottomRow = bounds;
 
-    auto driveSection = bottomRow.removeFromLeft(bottomRow.getWidth() / 3 - 8);
+    auto driveSection = bottomRow.removeFromLeft(bottomRow.getWidth() / 4 - 6);
     drawSection(g, driveSection, "OVERDRIVE");
 
-    bottomRow.removeFromLeft(12);
-    auto fxSection = bottomRow.removeFromLeft(bottomRow.getWidth() / 2 - 8);
+    bottomRow.removeFromLeft(8);
+    auto fxSection = bottomRow.removeFromLeft(bottomRow.getWidth() * 2 / 3 - 4);
     drawSection(g, fxSection, "EFFECTS");
 
-    bottomRow.removeFromLeft(12);
+    bottomRow.removeFromLeft(8);
     auto outputSection = bottomRow;
     drawSection(g, outputSection, "OUTPUT");
 }
 
 void MicroAcid303AudioProcessorEditor::resized()
 {
-    auto bounds = getLocalBounds().withTrimmedTop(60).reduced(15);
+    auto bounds = getLocalBounds().withTrimmedTop(60).reduced(10);
 
     //==============================================================================
-    // TOP ROW LAYOUT
-    auto topRow = bounds.removeFromTop(bounds.getHeight() / 2 - 8);
+    // TOP ROW LAYOUT (OSCILLATOR, FILTER, ENVELOPE)
+    auto topRow = bounds.removeFromTop(bounds.getHeight() / 3 - 4);
 
     // OSCILLATOR SECTION
-    auto oscSection = topRow.removeFromLeft(topRow.getWidth() / 3 - 8).reduced(18, 35);
+    auto oscSection = topRow.removeFromLeft(topRow.getWidth() / 3 - 6).reduced(12, 32);
 
-    auto oscRow1 = oscSection.removeFromTop(30);
-    m_waveformLabel.setBounds(oscRow1.removeFromLeft(80));
+    auto oscRow1 = oscSection.removeFromTop(26);
+    m_waveformLabel.setBounds(oscRow1.removeFromLeft(70));
     m_waveformSelector.setBounds(oscRow1);
 
-    oscSection.removeFromTop(10);
-    auto tuneKnobArea = oscSection.removeFromTop(100);
+    oscSection.removeFromTop(6);
+    auto tuneKnobArea = oscSection.removeFromTop(70);
     m_fineTuneSlider.setBounds(tuneKnobArea);
 
-    m_fineTuneLabel.setBounds(oscSection.removeFromTop(20));
-    m_fineTuneValueLabel.setBounds(oscSection.removeFromTop(18));
+    m_fineTuneLabel.setBounds(oscSection.removeFromTop(16));
+    m_fineTuneValueLabel.setBounds(oscSection.removeFromTop(14));
 
-    topRow.removeFromLeft(12);
+    topRow.removeFromLeft(8);
 
-    // FILTER SECTION (large knobs)
-    auto filterSection = topRow.removeFromLeft(topRow.getWidth() / 2 - 8).reduced(18, 35);
+    // FILTER SECTION (smaller knobs)
+    auto filterSection = topRow.removeFromLeft(topRow.getWidth() / 2 - 4).reduced(12, 32);
 
-    auto knobSize = 110;
+    auto knobSize = 70;
     auto knobRow = filterSection.removeFromTop(knobSize);
 
     auto cutoffArea = knobRow.removeFromLeft(knobRow.getWidth() / 3);
     m_cutoffSlider.setBounds(cutoffArea.removeFromTop(knobSize));
-    m_cutoffLabel.setBounds(cutoffArea.removeFromTop(20));
-    m_cutoffValueLabel.setBounds(cutoffArea.removeFromTop(18));
+    m_cutoffLabel.setBounds(cutoffArea.removeFromTop(16));
+    m_cutoffValueLabel.setBounds(cutoffArea.removeFromTop(14));
 
     auto resArea = knobRow.removeFromLeft(knobRow.getWidth() / 2);
     m_resonanceSlider.setBounds(resArea.removeFromTop(knobSize));
-    m_resonanceLabel.setBounds(resArea.removeFromTop(20));
-    m_resonanceValueLabel.setBounds(resArea.removeFromTop(18));
+    m_resonanceLabel.setBounds(resArea.removeFromTop(16));
+    m_resonanceValueLabel.setBounds(resArea.removeFromTop(14));
 
     m_envModSlider.setBounds(knobRow.removeFromTop(knobSize));
-    m_envModLabel.setBounds(knobRow.removeFromTop(20));
-    m_envModValueLabel.setBounds(knobRow.removeFromTop(18));
+    m_envModLabel.setBounds(knobRow.removeFromTop(16));
+    m_envModValueLabel.setBounds(knobRow.removeFromTop(14));
 
-    topRow.removeFromLeft(12);
+    topRow.removeFromLeft(8);
 
     // ENVELOPE SECTION
-    auto envSection = topRow.reduced(18, 35);
+    auto envSection = topRow.reduced(12, 32);
 
-    auto envKnobSize = 100;
+    auto envKnobSize = 70;
     auto envRow = envSection.removeFromTop(envKnobSize);
 
     auto decayArea = envRow.removeFromLeft(envRow.getWidth() / 3);
     m_decaySlider.setBounds(decayArea.removeFromTop(envKnobSize));
-    m_decayLabel.setBounds(decayArea.removeFromTop(20));
-    m_decayValueLabel.setBounds(decayArea.removeFromTop(18));
+    m_decayLabel.setBounds(decayArea.removeFromTop(16));
+    m_decayValueLabel.setBounds(decayArea.removeFromTop(14));
 
     auto accentArea = envRow.removeFromLeft(envRow.getWidth() / 2);
     m_accentSlider.setBounds(accentArea.removeFromTop(envKnobSize));
-    m_accentLabel.setBounds(accentArea.removeFromTop(20));
-    m_accentValueLabel.setBounds(accentArea.removeFromTop(18));
+    m_accentLabel.setBounds(accentArea.removeFromTop(16));
+    m_accentValueLabel.setBounds(accentArea.removeFromTop(14));
 
     m_slideTimeSlider.setBounds(envRow.removeFromTop(envKnobSize));
-    m_slideTimeLabel.setBounds(envRow.removeFromTop(20));
-    m_slideTimeValueLabel.setBounds(envRow.removeFromTop(18));
+    m_slideTimeLabel.setBounds(envRow.removeFromTop(16));
+    m_slideTimeValueLabel.setBounds(envRow.removeFromTop(14));
 
-    bounds.removeFromTop(12);
+    bounds.removeFromTop(8);
 
     //==============================================================================
-    // BOTTOM ROW LAYOUT
+    // MIDDLE ROW LAYOUT (ARPEGGIATOR)
+    auto middleRow = bounds.removeFromTop(bounds.getHeight() / 2 - 4).reduced(12, 32);
+
+    // Arp enable button
+    auto arpEnableArea = middleRow.removeFromLeft(80);
+    m_arpEnabledButton.setBounds(arpEnableArea.reduced(4, 20));
+
+    middleRow.removeFromLeft(10);
+
+    // Mode selector
+    auto modeArea = middleRow.removeFromLeft(100);
+    m_arpModeLabel.setBounds(modeArea.removeFromTop(16));
+    m_arpModeSelector.setBounds(modeArea.removeFromTop(26));
+
+    middleRow.removeFromLeft(10);
+
+    // Division selector
+    auto divArea = middleRow.removeFromLeft(100);
+    m_arpDivisionLabel.setBounds(divArea.removeFromTop(16));
+    m_arpDivisionSelector.setBounds(divArea.removeFromTop(26));
+
+    middleRow.removeFromLeft(20);
+
+    // Gate, Octaves, Swing knobs
+    auto arpKnobSize = 60;
+    auto arpKnobRow = middleRow;
+
+    auto gateArea = arpKnobRow.removeFromLeft(arpKnobRow.getWidth() / 3);
+    m_arpGateSlider.setBounds(gateArea.removeFromTop(arpKnobSize));
+    m_arpGateLabel.setBounds(gateArea.removeFromTop(14));
+    m_arpGateValueLabel.setBounds(gateArea.removeFromTop(12));
+
+    auto octArea = arpKnobRow.removeFromLeft(arpKnobRow.getWidth() / 2);
+    m_arpOctavesSlider.setBounds(octArea.removeFromTop(arpKnobSize));
+    m_arpOctavesLabel.setBounds(octArea.removeFromTop(14));
+    m_arpOctavesValueLabel.setBounds(octArea.removeFromTop(12));
+
+    m_arpSwingSlider.setBounds(arpKnobRow.removeFromTop(arpKnobSize));
+    m_arpSwingLabel.setBounds(arpKnobRow.removeFromTop(14));
+    m_arpSwingValueLabel.setBounds(arpKnobRow.removeFromTop(12));
+
+    bounds.removeFromTop(8);
+
+    //==============================================================================
+    // BOTTOM ROW LAYOUT (OVERDRIVE, EFFECTS, OUTPUT)
     auto bottomRow = bounds;
 
     // OVERDRIVE SECTION
-    auto driveSection = bottomRow.removeFromLeft(bottomRow.getWidth() / 3 - 8).reduced(18, 35);
+    auto driveSection = bottomRow.removeFromLeft(bottomRow.getWidth() / 4 - 6).reduced(12, 32);
 
-    auto driveKnobArea = driveSection.removeFromTop(100);
+    auto driveKnobArea = driveSection.removeFromTop(65);
     m_driveSlider.setBounds(driveKnobArea);
-    m_driveLabel.setBounds(driveSection.removeFromTop(20));
-    m_driveValueLabel.setBounds(driveSection.removeFromTop(18));
+    m_driveLabel.setBounds(driveSection.removeFromTop(14));
+    m_driveValueLabel.setBounds(driveSection.removeFromTop(12));
 
-    driveSection.removeFromTop(10);
-    auto modeRow = driveSection.removeFromTop(30);
-    m_driveModeLabel.setBounds(modeRow.removeFromLeft(60));
-    m_driveModeSelector.setBounds(modeRow);
+    driveSection.removeFromTop(6);
+    auto driveModeRow = driveSection.removeFromTop(26);
+    m_driveModeLabel.setBounds(driveModeRow.removeFromLeft(45));
+    m_driveModeSelector.setBounds(driveModeRow);
 
-    bottomRow.removeFromLeft(12);
+    bottomRow.removeFromLeft(8);
 
     // EFFECTS SECTION
-    auto fxSection = bottomRow.removeFromLeft(bottomRow.getWidth() / 2 - 8).reduced(18, 35);
+    auto fxSection = bottomRow.removeFromLeft(bottomRow.getWidth() * 2 / 3 - 4).reduced(12, 32);
 
-    auto fxTypeRow = fxSection.removeFromTop(30);
-    m_fxTypeLabel.setBounds(fxTypeRow.removeFromLeft(80));
+    auto fxTypeRow = fxSection.removeFromTop(26);
+    m_fxTypeLabel.setBounds(fxTypeRow.removeFromLeft(65));
     m_fxTypeSelector.setBounds(fxTypeRow);
 
-    fxSection.removeFromTop(10);
+    fxSection.removeFromTop(6);
 
-    auto fxKnobSize = 90;
+    auto fxKnobSize = 60;
     auto fxKnobRow = fxSection.removeFromTop(fxKnobSize);
 
     auto timeArea = fxKnobRow.removeFromLeft(fxKnobRow.getWidth() / 3);
     m_fxTimeSlider.setBounds(timeArea.removeFromTop(fxKnobSize));
-    m_fxTimeLabel.setBounds(timeArea.removeFromTop(20));
-    m_fxTimeValueLabel.setBounds(timeArea.removeFromTop(18));
+    m_fxTimeLabel.setBounds(timeArea.removeFromTop(14));
+    m_fxTimeValueLabel.setBounds(timeArea.removeFromTop(12));
 
     auto fbArea = fxKnobRow.removeFromLeft(fxKnobRow.getWidth() / 2);
     m_fxFeedbackSlider.setBounds(fbArea.removeFromTop(fxKnobSize));
-    m_fxFeedbackLabel.setBounds(fbArea.removeFromTop(20));
-    m_fxFeedbackValueLabel.setBounds(fbArea.removeFromTop(18));
+    m_fxFeedbackLabel.setBounds(fbArea.removeFromTop(14));
+    m_fxFeedbackValueLabel.setBounds(fbArea.removeFromTop(12));
 
     m_fxMixSlider.setBounds(fxKnobRow.removeFromTop(fxKnobSize));
-    m_fxMixLabel.setBounds(fxKnobRow.removeFromTop(20));
-    m_fxMixValueLabel.setBounds(fxKnobRow.removeFromTop(18));
+    m_fxMixLabel.setBounds(fxKnobRow.removeFromTop(14));
+    m_fxMixValueLabel.setBounds(fxKnobRow.removeFromTop(12));
 
-    bottomRow.removeFromLeft(12);
+    bottomRow.removeFromLeft(8);
 
     // OUTPUT SECTION
-    auto outputSection = bottomRow.reduced(18, 35);
+    auto outputSection = bottomRow.reduced(12, 32);
 
-    outputSection.removeFromTop(20);
-    m_outputGainSlider.setBounds(outputSection.removeFromTop(150));
-    outputSection.removeFromTop(5);
-    m_outputGainLabel.setBounds(outputSection.removeFromTop(20));
-    m_outputGainValueLabel.setBounds(outputSection.removeFromTop(18));
+    m_outputGainSlider.setBounds(outputSection.removeFromTop(100));
+    outputSection.removeFromTop(4);
+    m_outputGainLabel.setBounds(outputSection.removeFromTop(16));
+    m_outputGainValueLabel.setBounds(outputSection.removeFromTop(14));
 }
 
 void MicroAcid303AudioProcessorEditor::timerCallback()
@@ -835,6 +945,19 @@ void MicroAcid303AudioProcessorEditor::timerCallback()
 
     m_outputGainValueLabel.setText(
         juce::String(params.getRawParameterValue(MicroAcidParameters::IDs::OUTPUT_GAIN)->load(), 1) + " dB",
+        juce::dontSendNotification);
+
+    // Arpeggiator values
+    m_arpGateValueLabel.setText(
+        juce::String(int(params.getRawParameterValue(MicroAcidParameters::IDs::ARP_GATE)->load() * 100)) + " %",
+        juce::dontSendNotification);
+
+    m_arpOctavesValueLabel.setText(
+        juce::String(int(params.getRawParameterValue(MicroAcidParameters::IDs::ARP_OCTAVES)->load())),
+        juce::dontSendNotification);
+
+    m_arpSwingValueLabel.setText(
+        juce::String(int(params.getRawParameterValue(MicroAcidParameters::IDs::ARP_SWING)->load() * 100)) + " %",
         juce::dontSendNotification);
 }
 

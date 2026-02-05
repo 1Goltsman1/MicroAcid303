@@ -152,6 +152,34 @@ private:
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> m_fxMixAttachment;
 
     //==============================================================================
+    // ARPEGGIATOR SECTION
+    juce::ToggleButton m_arpEnabledButton;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> m_arpEnabledAttachment;
+
+    juce::ComboBox m_arpModeSelector;
+    juce::Label m_arpModeLabel;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> m_arpModeAttachment;
+
+    juce::ComboBox m_arpDivisionSelector;
+    juce::Label m_arpDivisionLabel;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> m_arpDivisionAttachment;
+
+    juce::Slider m_arpGateSlider;
+    juce::Label m_arpGateLabel;
+    juce::Label m_arpGateValueLabel;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> m_arpGateAttachment;
+
+    juce::Slider m_arpOctavesSlider;
+    juce::Label m_arpOctavesLabel;
+    juce::Label m_arpOctavesValueLabel;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> m_arpOctavesAttachment;
+
+    juce::Slider m_arpSwingSlider;
+    juce::Label m_arpSwingLabel;
+    juce::Label m_arpSwingValueLabel;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> m_arpSwingAttachment;
+
+    //==============================================================================
     // OUTPUT SECTION
     juce::Slider m_outputGainSlider;
     juce::Label m_outputGainLabel;
