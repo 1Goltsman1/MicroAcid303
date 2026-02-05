@@ -798,46 +798,48 @@ void MicroAcid303AudioProcessorEditor::resized()
     topRow.removeFromLeft(8);
 
     // FILTER SECTION (smaller knobs)
-    auto filterSection = topRow.removeFromLeft(topRow.getWidth() / 2 - 4).reduced(12, 32);
+    auto filterSection = topRow.removeFromLeft(topRow.getWidth() / 2 - 4).reduced(12, 28);
 
-    auto knobSize = 70;
-    auto knobRow = filterSection.removeFromTop(knobSize);
+    auto filterKnobSize = 55;
+    auto filterKnobWidth = filterSection.getWidth() / 3;
 
-    auto cutoffArea = knobRow.removeFromLeft(knobRow.getWidth() / 3);
-    m_cutoffSlider.setBounds(cutoffArea.removeFromTop(knobSize));
+    auto cutoffArea = filterSection.removeFromLeft(filterKnobWidth);
+    m_cutoffSlider.setBounds(cutoffArea.removeFromTop(filterKnobSize));
     m_cutoffLabel.setBounds(cutoffArea.removeFromTop(16));
     m_cutoffValueLabel.setBounds(cutoffArea.removeFromTop(14));
 
-    auto resArea = knobRow.removeFromLeft(knobRow.getWidth() / 2);
-    m_resonanceSlider.setBounds(resArea.removeFromTop(knobSize));
+    auto resArea = filterSection.removeFromLeft(filterKnobWidth);
+    m_resonanceSlider.setBounds(resArea.removeFromTop(filterKnobSize));
     m_resonanceLabel.setBounds(resArea.removeFromTop(16));
     m_resonanceValueLabel.setBounds(resArea.removeFromTop(14));
 
-    m_envModSlider.setBounds(knobRow.removeFromTop(knobSize));
-    m_envModLabel.setBounds(knobRow.removeFromTop(16));
-    m_envModValueLabel.setBounds(knobRow.removeFromTop(14));
+    auto envModArea = filterSection;
+    m_envModSlider.setBounds(envModArea.removeFromTop(filterKnobSize));
+    m_envModLabel.setBounds(envModArea.removeFromTop(16));
+    m_envModValueLabel.setBounds(envModArea.removeFromTop(14));
 
     topRow.removeFromLeft(8);
 
-    // ENVELOPE SECTION
-    auto envSection = topRow.reduced(12, 32);
+    // ENVELOPE SECTION (smaller knobs with proper space for labels)
+    auto envSection = topRow.reduced(12, 28);
 
-    auto envKnobSize = 70;
-    auto envRow = envSection.removeFromTop(envKnobSize);
+    auto envKnobSize = 55;
+    auto envKnobWidth = envSection.getWidth() / 3;
 
-    auto decayArea = envRow.removeFromLeft(envRow.getWidth() / 3);
+    auto decayArea = envSection.removeFromLeft(envKnobWidth);
     m_decaySlider.setBounds(decayArea.removeFromTop(envKnobSize));
     m_decayLabel.setBounds(decayArea.removeFromTop(16));
     m_decayValueLabel.setBounds(decayArea.removeFromTop(14));
 
-    auto accentArea = envRow.removeFromLeft(envRow.getWidth() / 2);
+    auto accentArea = envSection.removeFromLeft(envKnobWidth);
     m_accentSlider.setBounds(accentArea.removeFromTop(envKnobSize));
     m_accentLabel.setBounds(accentArea.removeFromTop(16));
     m_accentValueLabel.setBounds(accentArea.removeFromTop(14));
 
-    m_slideTimeSlider.setBounds(envRow.removeFromTop(envKnobSize));
-    m_slideTimeLabel.setBounds(envRow.removeFromTop(16));
-    m_slideTimeValueLabel.setBounds(envRow.removeFromTop(14));
+    auto slideArea = envSection;
+    m_slideTimeSlider.setBounds(slideArea.removeFromTop(envKnobSize));
+    m_slideTimeLabel.setBounds(slideArea.removeFromTop(16));
+    m_slideTimeValueLabel.setBounds(slideArea.removeFromTop(14));
 
     bounds.removeFromTop(8);
 
@@ -904,8 +906,8 @@ void MicroAcid303AudioProcessorEditor::resized()
 
     bottomRow.removeFromLeft(8);
 
-    // EFFECTS SECTION
-    auto fxSection = bottomRow.removeFromLeft(bottomRow.getWidth() * 2 / 3 - 4).reduced(12, 32);
+    // EFFECTS SECTION (proper layout with space for labels)
+    auto fxSection = bottomRow.removeFromLeft(bottomRow.getWidth() * 2 / 3 - 4).reduced(12, 28);
 
     auto fxTypeRow = fxSection.removeFromTop(26);
     m_fxTypeLabel.setBounds(fxTypeRow.removeFromLeft(65));
@@ -913,22 +915,23 @@ void MicroAcid303AudioProcessorEditor::resized()
 
     fxSection.removeFromTop(6);
 
-    auto fxKnobSize = 60;
-    auto fxKnobRow = fxSection.removeFromTop(fxKnobSize);
+    auto fxKnobSize = 50;
+    auto fxKnobWidth = fxSection.getWidth() / 3;
 
-    auto timeArea = fxKnobRow.removeFromLeft(fxKnobRow.getWidth() / 3);
+    auto timeArea = fxSection.removeFromLeft(fxKnobWidth);
     m_fxTimeSlider.setBounds(timeArea.removeFromTop(fxKnobSize));
     m_fxTimeLabel.setBounds(timeArea.removeFromTop(14));
     m_fxTimeValueLabel.setBounds(timeArea.removeFromTop(12));
 
-    auto fbArea = fxKnobRow.removeFromLeft(fxKnobRow.getWidth() / 2);
+    auto fbArea = fxSection.removeFromLeft(fxKnobWidth);
     m_fxFeedbackSlider.setBounds(fbArea.removeFromTop(fxKnobSize));
     m_fxFeedbackLabel.setBounds(fbArea.removeFromTop(14));
     m_fxFeedbackValueLabel.setBounds(fbArea.removeFromTop(12));
 
-    m_fxMixSlider.setBounds(fxKnobRow.removeFromTop(fxKnobSize));
-    m_fxMixLabel.setBounds(fxKnobRow.removeFromTop(14));
-    m_fxMixValueLabel.setBounds(fxKnobRow.removeFromTop(12));
+    auto mixArea = fxSection;
+    m_fxMixSlider.setBounds(mixArea.removeFromTop(fxKnobSize));
+    m_fxMixLabel.setBounds(mixArea.removeFromTop(14));
+    m_fxMixValueLabel.setBounds(mixArea.removeFromTop(12));
 
     bottomRow.removeFromLeft(8);
 
