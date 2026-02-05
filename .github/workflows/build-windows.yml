@@ -3,7 +3,7 @@ name: Build Windows VST3
 on:
   push:
     branches: [main]
-  workflow_dispatch:  # Allows manual trigger from GitHub website
+  workflow_dispatch:
 
 jobs:
   build-windows:
@@ -12,28 +12,28 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      with:
-        submodules: recursive
 
     - name: Setup MSVC
       uses: microsoft/setup-msbuild@v2
 
-    - name: Configure CMake
-      run: cmake -B build -G "Visual Studio 17 2022" -A x64
+    - name: Configure CMake (no tests)
+      run: cmake -B build -G "Visual Studio 17 2022" -A x64 -DBUILD_TESTING=OFF
 
     - name: Build Release
-      run: cmake --build build --config Release --target MicroAcid303_VST3 MicroAcid303_Standalone
+      run: cmake --build build --config Release
 
-    - name: List built files
+    - name: Find built files
+      shell: pwsh
       run: |
-        echo "=== Built VST3 Plugin ==="
-        dir /s "build\MicroAcid303_artefacts\Release\VST3"
+        Write-Host "=== Looking for built files ==="
+        Get-ChildItem -Path build -Recurse -Include "*.vst3","*.exe" | ForEach-Object { Write-Host $_.FullName }
 
     - name: Upload VST3 Plugin
       uses: actions/upload-artifact@v4
       with:
         name: 303-Micro-Acid-VST3-Windows
         path: build/MicroAcid303_artefacts/Release/VST3/
+        if-no-files-found: warn
         retention-days: 30
 
     - name: Upload Standalone App
@@ -41,5 +41,5 @@ jobs:
       with:
         name: 303-Micro-Acid-Standalone-Windows
         path: build/MicroAcid303_artefacts/Release/Standalone/
+        if-no-files-found: warn
         retention-days: 30
-        if-no-files-found: ignore

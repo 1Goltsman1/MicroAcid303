@@ -100,6 +100,9 @@ elseif(WIN32)
     endif()
 endif()
 
-# Enable testing
-enable_testing()
-add_subdirectory(Tests)
+# Enable testing (can be disabled with -DBUILD_TESTING=OFF)
+option(BUILD_TESTING "Build the testing tree" ON)
+if(BUILD_TESTING)
+    enable_testing()
+    add_subdirectory(Tests)
+endif()
