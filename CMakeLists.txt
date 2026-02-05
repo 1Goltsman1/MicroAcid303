@@ -45,13 +45,16 @@ juce_add_plugin(MicroAcid303
     AU_MAIN_TYPE kAudioUnitType_MusicDevice
 )
 
-# Source files - will add these incrementally
+# Source files
 target_sources(MicroAcid303 PRIVATE
     Source/PluginProcessor.cpp
     Source/PluginEditor.cpp
     Source/dsp/Oscillator.cpp
     Source/dsp/Envelope.cpp
     Source/dsp/LadderFilter.cpp
+    Source/dsp/Overdrive.cpp
+    Source/dsp/Effects.cpp
+    Source/dsp/Arpeggiator.cpp
 )
 
 # Compiler definitions

@@ -2,7 +2,6 @@
 #include "PluginEditor.h"
 #include <cmath>
 
-//==============================================================================
 MicroAcid303AudioProcessor::MicroAcid303AudioProcessor()
 #ifndef JucePlugin_PreferredChannelConfigurations
      : AudioProcessor (BusesProperties()
@@ -21,13 +20,15 @@ MicroAcid303AudioProcessor::MicroAcid303AudioProcessor()
     m_oscillator = std::make_unique<Oscillator>();
     m_envelope = std::make_unique<Envelope>();
     m_filter = std::make_unique<LadderFilter>();
+    m_overdrive = std::make_unique<Overdrive>();
+    m_effects = std::make_unique<Effects>();
+    m_arpeggiator = std::make_unique<Arpeggiator>();
 }
 
 MicroAcid303AudioProcessor::~MicroAcid303AudioProcessor()
 {
 }
 
-//==============================================================================
 const juce::String MicroAcid303AudioProcessor::getName() const
 {
     return JucePlugin_Name;
@@ -62,13 +63,12 @@ bool MicroAcid303AudioProcessor::isMidiEffect() const
 
 double MicroAcid303AudioProcessor::getTailLengthSeconds() const
 {
-    return 0.0;
+    return 2.0; // Effects tail
 }
 
 int MicroAcid303AudioProcessor::getNumPrograms()
 {
-    return 1;   // NB: some hosts don't cope very well if you tell them there are 0 programs,
-                // so this should be at least 1, even if you're not really implementing programs.
+    return 1;
 }
 
 int MicroAcid303AudioProcessor::getCurrentProgram()
@@ -92,13 +92,11 @@ void MicroAcid303AudioProcessor::changeProgramName (int index, const juce::Strin
     juce::ignoreUnused (index, newName);
 }
 
-//==============================================================================
 void MicroAcid303AudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
     m_sampleRate = sampleRate;
     m_samplesPerBlock = samplesPerBlock;
 
-    // Prepare DSP modules
     if (m_oscillator)
         m_oscillator->prepare(sampleRate, samplesPerBlock);
 
@@ -107,12 +105,19 @@ void MicroAcid303AudioProcessor::prepareToPlay (double sampleRate, int samplesPe
 
     if (m_filter)
         m_filter->prepare(sampleRate, samplesPerBlock);
+
+    if (m_overdrive)
+        m_overdrive->prepare(sampleRate, samplesPerBlock);
+
+    if (m_effects)
+        m_effects->prepare(sampleRate, samplesPerBlock);
+
+    if (m_arpeggiator)
+        m_arpeggiator->prepare(sampleRate);
 }
 
 void MicroAcid303AudioProcessor::releaseResources()
 {
-    // When playback stops, you can use this as an opportunity to free up any
-    // spare memory, etc.
 }
 
 #ifndef JucePlugin_PreferredChannelConfigurations
@@ -122,14 +127,10 @@ bool MicroAcid303AudioProcessor::isBusesLayoutSupported (const BusesLayout& layo
     juce::ignoreUnused (layouts);
     return true;
   #else
-    // This plugin outputs mono (303 style)
     if (layouts.getMainOutputChannelSet() == juce::AudioChannelSet::mono())
         return true;
-
-    // Also support stereo output for effects
     if (layouts.getMainOutputChannelSet() == juce::AudioChannelSet::stereo())
         return true;
-
     return false;
   #endif
 }
@@ -140,79 +141,144 @@ void MicroAcid303AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
 {
     juce::ScopedNoDenormals noDenormals;
 
-    // Clear any existing audio data
     auto totalNumInputChannels  = getTotalNumInputChannels();
     auto totalNumOutputChannels = getTotalNumOutputChannels();
 
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear (i, 0, buffer.getNumSamples());
 
-    // Update ALL DSP parameters from plugin parameters
+    // Get playhead info for arpeggiator
+    if (auto* playHead = getPlayHead())
+    {
+        if (auto posInfo = playHead->getPosition())
+        {
+            if (posInfo->getBpm())
+                m_bpm = *posInfo->getBpm();
+            if (posInfo->getTimeInSamples())
+                m_samplePosition = *posInfo->getTimeInSamples();
+        }
+    }
+
+    // Update ALL parameters
     updateOscillatorParameters();
     updateEnvelopeParameters();
     updateFilterParameters();
+    updateOverdriveParameters();
+    updateEffectsParameters();
+    updateArpeggiatorParameters();
 
-    // Get output gain parameter
+    // Get output gain
     auto* outputGainParam = dynamic_cast<juce::AudioParameterFloat*>(
         m_parameters.getParameter(MicroAcidParameters::IDs::OUTPUT_GAIN));
     float outputGainDb = outputGainParam ? outputGainParam->get() : 0.0f;
     float outputGain = juce::Decibels::decibelsToGain(outputGainDb);
 
-    // Process MIDI messages
+    // Check if arpeggiator is enabled
+    auto* arpEnabledParam = dynamic_cast<juce::AudioParameterBool*>(
+        m_parameters.getParameter(MicroAcidParameters::IDs::ARP_ENABLED));
+    bool arpEnabled = arpEnabledParam ? arpEnabledParam->get() : false;
+
+    // Process MIDI (with or without arpeggiator)
     for (const auto metadata : midiMessages)
     {
-        handleMidiMessage(metadata.getMessage());
+        auto msg = metadata.getMessage();
+
+        if (arpEnabled && m_arpeggiator)
+        {
+            // Feed notes to arpeggiator
+            if (msg.isNoteOn())
+                m_arpeggiator->noteOn(msg.getNoteNumber(), msg.getVelocity() / 127.0f);
+            else if (msg.isNoteOff())
+                m_arpeggiator->noteOff(msg.getNoteNumber());
+            else if (msg.isAllNotesOff())
+                m_arpeggiator->allNotesOff();
+        }
+        else
+        {
+            // Direct MIDI handling
+            handleMidiMessage(msg);
+        }
     }
 
     // Generate audio
     auto* channelData = buffer.getWritePointer(0);
     const int numSamples = buffer.getNumSamples();
 
-    // Check if all DSP modules are ready
-    if (!m_oscillator || !m_envelope || !m_filter)
+    if (!m_oscillator || !m_envelope || !m_filter || !m_overdrive || !m_effects)
     {
         buffer.clear();
         return;
     }
 
-    // Process audio sample by sample
     for (int sample = 0; sample < numSamples; ++sample)
     {
-        // 1. Generate oscillator output
+        // Process arpeggiator timing
+        if (arpEnabled && m_arpeggiator)
+        {
+            if (m_arpeggiator->process(m_bpm, m_samplePosition + sample))
+            {
+                // Arpeggiator triggered a new note
+                if (m_arpeggiator->isNoteActive())
+                {
+                    int note = m_arpeggiator->getCurrentNote();
+                    float vel = m_arpeggiator->getCurrentVelocity();
+
+                    m_currentNote = note;
+                    m_currentVelocity = vel;
+                    m_isNoteActive = true;
+
+                    if (m_oscillator)
+                        m_oscillator->setFrequency(midiNoteToFrequency(note));
+                    if (m_envelope)
+                        m_envelope->noteOn();
+                }
+            }
+
+            // Check if gate closed
+            if (!m_arpeggiator->isNoteActive() && m_isNoteActive)
+            {
+                m_isNoteActive = false;
+                if (m_envelope)
+                    m_envelope->noteOff();
+            }
+        }
+
+        // 1. Generate oscillator
         float signal = m_oscillator->processSample(0.0f);
 
-        // 2. Get envelope value (always process envelope for smooth curves)
+        // 2. Get envelope
         float envValue = m_envelope->processSample(0.0f);
 
-        // 3. Apply envelope to amplitude
-        // Include accent: accent adds extra amplitude when active
+        // 3. Apply envelope to amplitude with accent
         float amplitude = m_currentVelocity * (1.0f + m_accentAmount * 0.5f);
         signal *= envValue * amplitude;
 
-        // 4. Update filter with current envelope value for modulation
+        // 4. Apply filter with envelope modulation
         m_filter->setEnvelopeValue(envValue);
-
-        // 5. Process through filter
         signal = m_filter->processSample(signal);
 
-        // 6. Apply output gain
+        // 5. Apply overdrive
+        signal = m_overdrive->processSample(signal);
+
+        // 6. Apply effects
+        signal = m_effects->processSample(signal);
+
+        // 7. Apply output gain
         signal *= outputGain;
 
-        // 7. Soft clip to prevent clipping
-        signal = std::tanh(signal * 0.8f);
+        // 8. Final soft clip
+        signal = std::tanh(signal * 0.9f);
 
-        // 8. Write to output
         channelData[sample] = signal;
     }
 
-    // If we have stereo output, copy mono to both channels
+    // Copy mono to stereo if needed
     if (totalNumOutputChannels > 1)
-    {
         buffer.copyFrom(1, 0, buffer, 0, 0, numSamples);
-    }
+
+    m_samplePosition += numSamples;
 }
 
-//==============================================================================
 bool MicroAcid303AudioProcessor::hasEditor() const
 {
     return true;
@@ -223,10 +289,8 @@ juce::AudioProcessorEditor* MicroAcid303AudioProcessor::createEditor()
     return new MicroAcid303AudioProcessorEditor (*this);
 }
 
-//==============================================================================
 void MicroAcid303AudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
-    // Save parameter state
     auto state = m_parameters.copyState();
     std::unique_ptr<juce::XmlElement> xml (state.createXml());
     copyXmlToBinary (*xml, destData);
@@ -234,7 +298,6 @@ void MicroAcid303AudioProcessor::getStateInformation (juce::MemoryBlock& destDat
 
 void MicroAcid303AudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
-    // Restore parameter state
     std::unique_ptr<juce::XmlElement> xmlState (getXmlFromBinary (data, sizeInBytes));
 
     if (xmlState.get() != nullptr)
@@ -242,45 +305,30 @@ void MicroAcid303AudioProcessor::setStateInformation (const void* data, int size
             m_parameters.replaceState (juce::ValueTree::fromXml (*xmlState));
 }
 
-//==============================================================================
-// Helper methods
-
 void MicroAcid303AudioProcessor::handleMidiMessage(const juce::MidiMessage& message)
 {
     if (message.isNoteOn())
     {
-        // Store current note
         m_currentNote = message.getNoteNumber();
         m_currentVelocity = message.getVelocity() / 127.0f;
         m_isNoteActive = true;
 
-        // Set oscillator frequency
         if (m_oscillator)
-        {
-            float frequency = midiNoteToFrequency(m_currentNote);
-            m_oscillator->setFrequency(frequency);
-        }
+            m_oscillator->setFrequency(midiNoteToFrequency(m_currentNote));
 
-        // Trigger envelope
         if (m_envelope)
-        {
             m_envelope->noteOn();
-        }
     }
     else if (message.isNoteOff())
     {
-        // Only turn off if it's the current note (monophonic behavior)
         if (message.getNoteNumber() == m_currentNote)
         {
             m_isNoteActive = false;
             m_currentNote = -1;
             m_currentVelocity = 0.0f;
 
-            // Trigger envelope release
             if (m_envelope)
-            {
                 m_envelope->noteOff();
-            }
         }
     }
     else if (message.isAllNotesOff())
@@ -289,109 +337,158 @@ void MicroAcid303AudioProcessor::handleMidiMessage(const juce::MidiMessage& mess
         m_currentNote = -1;
         m_currentVelocity = 0.0f;
 
-        // Release envelope
         if (m_envelope)
-        {
             m_envelope->noteOff();
-        }
+
+        if (m_arpeggiator)
+            m_arpeggiator->allNotesOff();
     }
 }
 
 void MicroAcid303AudioProcessor::updateOscillatorParameters()
 {
-    if (!m_oscillator)
-        return;
+    if (!m_oscillator) return;
 
-    // Update waveform
+    // Waveform
     auto* waveformParam = dynamic_cast<juce::AudioParameterChoice*>(
         m_parameters.getParameter(MicroAcidParameters::IDs::WAVEFORM));
     if (waveformParam)
-    {
-        int waveformIndex = waveformParam->getIndex();
-        m_oscillator->setWaveform(waveformIndex == 0 ?
-            Oscillator::Waveform::Sawtooth :
-            Oscillator::Waveform::Square);
-    }
+        m_oscillator->setWaveform(waveformParam->getIndex());
 
-    // Update fine tune
+    // Fine tune
     auto* fineTuneParam = dynamic_cast<juce::AudioParameterFloat*>(
         m_parameters.getParameter(MicroAcidParameters::IDs::FINE_TUNE));
     if (fineTuneParam)
-    {
         m_oscillator->setFineTune(fineTuneParam->get());
-    }
+
+    // Slide time
+    auto* slideParam = dynamic_cast<juce::AudioParameterFloat*>(
+        m_parameters.getParameter(MicroAcidParameters::IDs::SLIDE_TIME));
+    if (slideParam)
+        m_oscillator->setSlideTime(slideParam->get());
 }
 
 void MicroAcid303AudioProcessor::updateEnvelopeParameters()
 {
-    if (!m_envelope)
-        return;
-
-    // For 303 style, we use a simplified envelope:
-    // - Very fast attack (almost instant)
-    // - Decay controls the overall envelope time
-    // - No sustain (always decays to 0)
-    // - Very fast release
+    if (!m_envelope) return;
 
     auto* decayParam = dynamic_cast<juce::AudioParameterFloat*>(
         m_parameters.getParameter(MicroAcidParameters::IDs::DECAY));
     if (decayParam)
     {
         float decayTime = decayParam->get();
-        m_envelope->setAttack(0.001f);        // 1ms attack
-        m_envelope->setDecay(decayTime);      // User-controlled decay
-        m_envelope->setSustain(0.0f);         // No sustain (303 style)
-        m_envelope->setRelease(0.01f);        // 10ms release
+        m_envelope->setAttack(0.001f);
+        m_envelope->setDecay(decayTime);
+        m_envelope->setSustain(0.0f);
+        m_envelope->setRelease(0.01f);
     }
 
-    // Store accent amount for amplitude modulation
     auto* accentParam = dynamic_cast<juce::AudioParameterFloat*>(
         m_parameters.getParameter(MicroAcidParameters::IDs::ACCENT));
     if (accentParam)
-    {
         m_accentAmount = accentParam->get();
-    }
 }
 
 void MicroAcid303AudioProcessor::updateFilterParameters()
 {
-    if (!m_filter)
-        return;
+    if (!m_filter) return;
 
-    // Update cutoff frequency
     auto* cutoffParam = dynamic_cast<juce::AudioParameterFloat*>(
         m_parameters.getParameter(MicroAcidParameters::IDs::CUTOFF));
     if (cutoffParam)
-    {
         m_filter->setCutoff(cutoffParam->get());
-    }
 
-    // Update resonance
     auto* resonanceParam = dynamic_cast<juce::AudioParameterFloat*>(
         m_parameters.getParameter(MicroAcidParameters::IDs::RESONANCE));
     if (resonanceParam)
-    {
         m_filter->setResonance(resonanceParam->get());
-    }
 
-    // Update envelope modulation amount
     auto* envModParam = dynamic_cast<juce::AudioParameterFloat*>(
         m_parameters.getParameter(MicroAcidParameters::IDs::ENV_MOD));
     if (envModParam)
-    {
         m_filter->setEnvelopeAmount(envModParam->get());
-    }
+}
+
+void MicroAcid303AudioProcessor::updateOverdriveParameters()
+{
+    if (!m_overdrive) return;
+
+    auto* driveParam = dynamic_cast<juce::AudioParameterFloat*>(
+        m_parameters.getParameter(MicroAcidParameters::IDs::DRIVE));
+    if (driveParam)
+        m_overdrive->setDrive(driveParam->get());
+
+    auto* driveModeParam = dynamic_cast<juce::AudioParameterChoice*>(
+        m_parameters.getParameter(MicroAcidParameters::IDs::DRIVE_MODE));
+    if (driveModeParam)
+        m_overdrive->setMode(driveModeParam->getIndex());
+}
+
+void MicroAcid303AudioProcessor::updateEffectsParameters()
+{
+    if (!m_effects) return;
+
+    auto* fxTypeParam = dynamic_cast<juce::AudioParameterChoice*>(
+        m_parameters.getParameter(MicroAcidParameters::IDs::FX_TYPE));
+    if (fxTypeParam)
+        m_effects->setType(fxTypeParam->getIndex());
+
+    auto* fxTimeParam = dynamic_cast<juce::AudioParameterFloat*>(
+        m_parameters.getParameter(MicroAcidParameters::IDs::FX_TIME));
+    if (fxTimeParam)
+        m_effects->setTime(fxTimeParam->get());
+
+    auto* fxFeedbackParam = dynamic_cast<juce::AudioParameterFloat*>(
+        m_parameters.getParameter(MicroAcidParameters::IDs::FX_FEEDBACK));
+    if (fxFeedbackParam)
+        m_effects->setFeedback(fxFeedbackParam->get());
+
+    auto* fxMixParam = dynamic_cast<juce::AudioParameterFloat*>(
+        m_parameters.getParameter(MicroAcidParameters::IDs::FX_MIX));
+    if (fxMixParam)
+        m_effects->setMix(fxMixParam->get());
+}
+
+void MicroAcid303AudioProcessor::updateArpeggiatorParameters()
+{
+    if (!m_arpeggiator) return;
+
+    auto* arpEnabledParam = dynamic_cast<juce::AudioParameterBool*>(
+        m_parameters.getParameter(MicroAcidParameters::IDs::ARP_ENABLED));
+    if (arpEnabledParam)
+        m_arpeggiator->setEnabled(arpEnabledParam->get());
+
+    auto* arpModeParam = dynamic_cast<juce::AudioParameterChoice*>(
+        m_parameters.getParameter(MicroAcidParameters::IDs::ARP_MODE));
+    if (arpModeParam)
+        m_arpeggiator->setMode(arpModeParam->getIndex());
+
+    auto* arpDivParam = dynamic_cast<juce::AudioParameterChoice*>(
+        m_parameters.getParameter(MicroAcidParameters::IDs::ARP_DIVISION));
+    if (arpDivParam)
+        m_arpeggiator->setDivision(arpDivParam->getIndex());
+
+    auto* arpGateParam = dynamic_cast<juce::AudioParameterFloat*>(
+        m_parameters.getParameter(MicroAcidParameters::IDs::ARP_GATE));
+    if (arpGateParam)
+        m_arpeggiator->setGate(arpGateParam->get());
+
+    auto* arpOctParam = dynamic_cast<juce::AudioParameterInt*>(
+        m_parameters.getParameter(MicroAcidParameters::IDs::ARP_OCTAVES));
+    if (arpOctParam)
+        m_arpeggiator->setOctaves(arpOctParam->get());
+
+    auto* arpSwingParam = dynamic_cast<juce::AudioParameterFloat*>(
+        m_parameters.getParameter(MicroAcidParameters::IDs::ARP_SWING));
+    if (arpSwingParam)
+        m_arpeggiator->setSwing(arpSwingParam->get());
 }
 
 float MicroAcid303AudioProcessor::midiNoteToFrequency(int midiNote)
 {
-    // MIDI note to frequency: f = 440 * 2^((n - 69) / 12)
-    // where n is the MIDI note number
     return 440.0f * std::pow(2.0f, (midiNote - 69) / 12.0f);
 }
 
-//==============================================================================
-// This creates new instances of the plugin..
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
     return new MicroAcid303AudioProcessor();
