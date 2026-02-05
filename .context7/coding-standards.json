@@ -1,0 +1,89 @@
+{
+  "language": "C++17",
+  "style": "Modern C++ with JUCE conventions",
+  "namingConventions": {
+    "classes": {
+      "style": "PascalCase",
+      "examples": ["Oscillator", "LadderFilter", "TBEnvelope", "MonophonicVoice"]
+    },
+    "functions": {
+      "style": "camelCase",
+      "examples": ["processSample", "setWaveform", "getCutoff", "noteOn"]
+    },
+    "memberVariables": {
+      "style": "camelCase with m_ prefix",
+      "examples": ["m_sampleRate", "m_cutoff", "m_resonance", "m_phase"]
+    },
+    "localVariables": {
+      "style": "camelCase",
+      "examples": ["frequency", "amplitude", "envValue", "midiNote"]
+    },
+    "constants": {
+      "style": "UPPER_SNAKE_CASE",
+      "examples": ["MAX_POLYPHONY", "SAMPLE_RATE", "PI", "TWO_PI"]
+    },
+    "namespaces": {
+      "style": "PascalCase",
+      "examples": ["TBConstants", "DSP", "Utils"]
+    }
+  },
+  "fileOrganization": {
+    "headerGuards": "#pragma once (preferred over include guards)",
+    "includes": [
+      "Order: C++ std headers, then JUCE headers, then project headers",
+      "Use forward declarations in headers when possible",
+      "Include full headers only in .cpp files"
+    ],
+    "structure": [
+      "1. Copyright/license comment",
+      "2. #pragma once",
+      "3. Includes (grouped and sorted)",
+      "4. Forward declarations",
+      "5. Class declaration",
+      "6. Inline function implementations (if simple)"
+    ]
+  },
+  "classDesign": {
+    "inheritance": {
+      "virtualDestructor": "Always declare virtual destructor for base classes",
+      "override": "Always use 'override' keyword for virtual function overrides",
+      "final": "Use 'final' when class should not be inherited"
+    },
+    "ruleOfFive": "Implement or delete: copy ctor, copy assign, move ctor, move assign, destructor",
+    "juceLeakDetector": "Use JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR for JUCE components",
+    "constCorrectness": "Mark member functions const when they don't modify state"
+  },
+  "modernCpp": {
+    "smartPointers": {
+      "unique_ptr": "For exclusive ownership (preferred)",
+      "shared_ptr": "Only when shared ownership is truly needed",
+      "raw": "For non-owning references (use reference or pointer)"
+    },
+    "autoKeyword": "Use 'auto' for complex types, explicit types for clarity",
+    "rangeBasedFor": "Prefer range-based for loops: for (const auto& item : container)",
+    "nullptr": "Use nullptr instead of NULL or 0",
+    "enum": "Use enum class instead of plain enum"
+  },
+  "documentation": {
+    "comments": {
+      "header": "Brief description of class purpose and usage",
+      "public": "Document public API functions with /** Doxygen style */",
+      "complex": "Explain WHY for complex algorithms, not WHAT",
+      "references": "Cite papers/resources for DSP algorithms"
+    },
+    "example": "/** Sets the cutoff frequency in Hz. Range: 20-4000 Hz. */"
+  },
+  "formatting": {
+    "indentation": "4 spaces (no tabs)",
+    "braces": "Opening brace on same line for functions and classes",
+    "lineLength": "Prefer <120 characters, hard limit at 140",
+    "spacing": "Space after control keywords: if (), for (), while ()"
+  },
+  "bestPractices": {
+    "initialization": "Use member initializer lists in constructors",
+    "casting": "Use C++ casts: static_cast, dynamic_cast, reinterpret_cast",
+    "comparisons": "Put constant on left in comparisons: if (0 == value)",
+    "assertions": "Use jassert() for debugging, check release builds separately",
+    "includes": "Avoid 'using namespace' in headers"
+  }
+}

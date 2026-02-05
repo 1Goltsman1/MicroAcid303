@@ -1,0 +1,37 @@
+{
+  "name": "TB-Style Bassline VST3",
+  "version": "1.0.0",
+  "description": "TB-303 inspired bassline synthesizer plugin for Ableton Live",
+  "platform": {
+    "development": "macOS (VS Code + CMake)",
+    "target": ["macOS (VST3/AU)", "Windows 10/11 (VST3)"],
+    "daw": ["Ableton Live 11", "Logic Pro", "Reaper"]
+  },
+  "techStack": {
+    "language": "C++17",
+    "framework": "JUCE 7.0.9+",
+    "buildSystem": "CMake 3.22+",
+    "ide": "VS Code",
+    "compiler": {
+      "mac": "Apple Clang (Xcode Command Line Tools)",
+      "windows": "Visual Studio 2022 (MSVC)"
+    },
+    "testing": "Catch2 3.4.0+",
+    "pluginFormat": ["VST3", "AU (macOS only)"]
+  },
+  "structure": {
+    "source": "Source/",
+    "dsp": "Source/dsp/",
+    "ui": "Source/ui/",
+    "utils": "Source/utils/",
+    "tests": "Tests/",
+    "juce": "JUCE/"
+  },
+  "goals": {
+    "cpuUsage": "<10% per instance at 44.1kHz/512 samples",
+    "testCoverage": ">80% for DSP modules",
+    "latency": "<10ms internal plugin latency",
+    "memory": "<50MB RAM per instance",
+    "stability": "0 crashes in 24-hour stress test"
+  }
+}

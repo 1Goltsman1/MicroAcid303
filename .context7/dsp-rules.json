@@ -1,0 +1,85 @@
+{
+  "realTimeSafety": {
+    "description": "Critical rules for audio thread safety in processBlock()",
+    "rules": [
+      {
+        "rule": "NO_HEAP_ALLOCATIONS",
+        "description": "Never use new/delete, malloc/free, std::vector::push_back in audio thread",
+        "enforcement": "All buffers allocated in prepareToPlay()",
+        "severity": "CRITICAL"
+      },
+      {
+        "rule": "NO_BLOCKING_OPERATIONS",
+        "description": "No file I/O, network, locks, or waits in audio thread",
+        "enforcement": "Use lock-free structures (juce::Atomic, juce::AbstractFifo)",
+        "severity": "CRITICAL"
+      },
+      {
+        "rule": "NO_UNBOUNDED_LOOPS",
+        "description": "All loops must have fixed iteration counts",
+        "enforcement": "No while(true), no recursion in processBlock()",
+        "severity": "CRITICAL"
+      },
+      {
+        "rule": "PARAMETER_SMOOTHING",
+        "description": "All continuous parameters must use smoothing",
+        "enforcement": "Use juce::SmoothedValue for cutoff, resonance, etc.",
+        "severity": "HIGH"
+      },
+      {
+        "rule": "DENORMAL_HANDLING",
+        "description": "Prevent CPU-killing denormal floats",
+        "enforcement": "Use juce::ScopedNoDenormals in processBlock()",
+        "severity": "HIGH"
+      },
+      {
+        "rule": "NAN_INF_VALIDATION",
+        "description": "Check for NaN/Inf in filter feedback paths",
+        "enforcement": "Use std::isfinite() or JUCE assertions in Debug builds",
+        "severity": "HIGH"
+      },
+      {
+        "rule": "OUTPUT_LIMITING",
+        "description": "Prevent output clipping and speaker damage",
+        "enforcement": "Soft clip or limit output to [-1.0, 1.0]",
+        "severity": "HIGH"
+      }
+    ]
+  },
+  "dspBestPractices": {
+    "oscillator": {
+      "antiAliasing": "Use PolyBLEP or MinBLEP for saw/square waves",
+      "target": "Aliasing <-60dB above 15kHz",
+      "reference": "Välimäki et al. - Alias-Free Digital Synthesis"
+    },
+    "filter": {
+      "type": "24dB ladder filter (4-pole)",
+      "nonLinearity": "tanh() saturation per stage for TB character",
+      "stability": "Limit resonance to 0.95, soft clip feedback",
+      "reference": "Huovilainen - Resolving Mystery of Moog Ladder Filter"
+    },
+    "envelope": {
+      "type": "Decay-only with accent multiplier",
+      "implementation": "Exponential decay using coefficient",
+      "accentRange": "1.0 to 3.0x multiplier"
+    },
+    "effects": {
+      "overdrive": "Waveshaping with pre/post filtering",
+      "delay": "Circular buffer with tempo sync support",
+      "reverb": "Use juce::dsp::Reverb or simple diffusion"
+    }
+  },
+  "performance": {
+    "profiling": "Use Xcode Instruments or Visual Studio Profiler",
+    "optimization": [
+      "Avoid divisions in inner loops (use multiplication by reciprocal)",
+      "Use lookup tables for expensive functions (tanh, sin, etc.)",
+      "Consider SIMD with juce::dsp::SIMDRegister if needed",
+      "Test at multiple buffer sizes: 64, 128, 256, 512, 1024"
+    ],
+    "targets": {
+      "cpuPerBlock": "<1ms average at 44.1kHz/512 samples",
+      "cpuPercent": "<10% on modern i5/M1"
+    }
+  }
+}

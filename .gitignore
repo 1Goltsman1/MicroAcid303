@@ -1,0 +1,44 @@
+# Build directories
+/build/
+/Builds/
+/cmake-build-*/
+/MicroAcid303_Windows_Build/
+
+# IDE files
+.vscode/
+.idea/
+*.xcodeproj
+*.xcworkspace
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Compiled binaries
+*.vst3
+*.component
+*.app
+*.dylib
+*.so
+*.dll
+*.exe
+
+# Temporary files
+*.tmp
+*.log
+*.bak
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+
+# Don't ignore JUCE (we cloned it locally)
+# But ignore its builds
+JUCE/build/
+JUCE/Builds/

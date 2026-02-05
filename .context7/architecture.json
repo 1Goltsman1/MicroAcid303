@@ -1,0 +1,210 @@
+{
+  "systemArchitecture": {
+    "type": "VST3 Instrument Plugin (Monophonic Synthesizer)",
+    "dataFlow": "MIDI Input → Voice Manager → DSP Chain → Effects → Audio Output",
+    "threading": {
+      "audioThread": "processBlock() - Real-time critical, no allocations",
+      "messageThread": "GUI updates, parameter changes, state management",
+      "communication": "Lock-free via juce::Atomic and juce::AudioProcessorValueTreeState"
+    }
+  },
+  "modules": {
+    "core": {
+      "PluginProcessor": {
+        "file": "Source/PluginProcessor.h/cpp",
+        "responsibility": "Main VST3 interface, audio processing orchestration",
+        "dependencies": ["All DSP modules", "PluginEditor", "JUCE"],
+        "critical": true
+      },
+      "PluginEditor": {
+        "file": "Source/PluginEditor.h/cpp",
+        "responsibility": "GUI, parameter visualization, user interaction",
+        "dependencies": ["PluginProcessor", "UI components", "JUCE"],
+        "thread": "Message thread only"
+      }
+    },
+    "dsp": {
+      "Oscillator": {
+        "file": "Source/dsp/Oscillator.h/cpp",
+        "responsibility": "Band-limited waveform generation (saw, square)",
+        "algorithm": "PolyBLEP anti-aliasing",
+        "inputs": ["frequency", "waveform", "fineTune"],
+        "outputs": ["audio sample"],
+        "dependencies": []
+      },
+      "LadderFilter": {
+        "file": "Source/dsp/Filter.h/cpp",
+        "responsibility": "24dB TB-303 style ladder filter",
+        "algorithm": "4-pole cascade with non-linear saturation",
+        "inputs": ["audio in", "cutoff", "resonance", "envMod", "envValue"],
+        "outputs": ["filtered audio"],
+        "dependencies": []
+      },
+      "TBEnvelope": {
+        "file": "Source/dsp/Envelope.h/cpp",
+        "responsibility": "Decay envelope with accent",
+        "algorithm": "Exponential decay",
+        "inputs": ["trigger", "decay time", "accent flag"],
+        "outputs": ["envelope value 0.0-1.0"],
+        "dependencies": []
+      },
+      "SlideProcessor": {
+        "file": "Source/dsp/Slide.h/cpp",
+        "responsibility": "Frequency glide between notes",
+        "algorithm": "Exponential frequency interpolation",
+        "inputs": ["target frequency", "slide time", "enable flag"],
+        "outputs": ["current frequency"],
+        "dependencies": []
+      },
+      "Overdrive": {
+        "file": "Source/dsp/Overdrive.h/cpp",
+        "responsibility": "Harmonic distortion (3 modes)",
+        "algorithm": "Waveshaping with pre/post filtering",
+        "inputs": ["audio in", "drive amount", "mode"],
+        "outputs": ["distorted audio"],
+        "dependencies": ["juce::dsp filters"]
+      },
+      "DelayReverb": {
+        "file": "Source/dsp/DelayReverb.h/cpp",
+        "responsibility": "Time-based effects (delay/reverb)",
+        "algorithm": "Circular buffer delay or juce::dsp::Reverb",
+        "inputs": ["audio in", "time", "feedback", "mix", "host BPM"],
+        "outputs": ["wet audio"],
+        "dependencies": ["juce::dsp::Reverb"]
+      }
+    },
+    "voice": {
+      "MidiHandler": {
+        "file": "Source/utils/MidiHandler.h/cpp",
+        "responsibility": "Parse MIDI buffer, detect note on/off, slides",
+        "inputs": ["juce::MidiBuffer"],
+        "outputs": ["NoteEvent array"],
+        "dependencies": []
+      },
+      "MonophonicVoice": {
+        "file": "Source/utils/Voice.h/cpp",
+        "responsibility": "Voice management, orchestrate DSP chain",
+        "dependencies": ["Oscillator", "Filter", "Envelope", "Slide"],
+        "behavior": "Single voice (monophonic), last-note priority"
+      }
+    },
+    "ui": {
+      "CustomKnob": {
+        "file": "Source/ui/CustomKnob.h/cpp",
+        "responsibility": "Rotary knob control with TB-303 styling",
+        "dependencies": ["juce::Slider"]
+      },
+      "WaveformDisplay": {
+        "file": "Source/ui/WaveformDisplay.h/cpp",
+        "responsibility": "Visual representation of oscillator output",
+        "dependencies": ["juce::Component"]
+      }
+    },
+    "state": {
+      "StateManager": {
+        "file": "Source/utils/StateManager.h/cpp",
+        "responsibility": "Serialize/deserialize plugin state",
+        "mechanism": "AudioProcessorValueTreeState to XML",
+        "stored": ["All parameters", "Optional: sequencer patterns"]
+      }
+    }
+  },
+  "dependencyRules": {
+    "layering": [
+      "DSP modules have ZERO dependencies on UI",
+      "DSP modules have ZERO dependencies on each other (loosely coupled)",
+      "PluginProcessor orchestrates all DSP modules",
+      "UI only communicates via AudioProcessorValueTreeState"
+    ],
+    "cyclicDependencies": "NOT ALLOWED - will cause compile errors",
+    "juceModules": [
+      "juce_audio_basics",
+      "juce_audio_processors",
+      "juce_audio_utils",
+      "juce_dsp",
+      "juce_gui_basics"
+    ]
+  },
+  "processingPipeline": {
+    "prepareToPlay": [
+      "1. Allocate all buffers and resources",
+      "2. Call prepare() on all DSP modules",
+      "3. Reset all state (envelope, filter, oscillator phase)"
+    ],
+    "processBlock": [
+      "1. Update smoothed parameter values",
+      "2. Parse MIDI buffer (MidiHandler)",
+      "3. For each note event: trigger voice, envelope, slide",
+      "4. For each audio sample:",
+      "   a. Get envelope value",
+      "   b. Generate oscillator sample",
+      "   c. Apply filter (with envelope mod)",
+      "   d. Apply overdrive",
+      "   e. Apply delay/reverb",
+      "   f. Soft clip output",
+      "5. Clear MIDI buffer"
+    ],
+    "getStateInformation": [
+      "1. Copy AudioProcessorValueTreeState to XML",
+      "2. Serialize to MemoryBlock"
+    ],
+    "setStateInformation": [
+      "1. Parse XML from MemoryBlock",
+      "2. Restore to AudioProcessorValueTreeState",
+      "3. DSP modules read new parameter values on next processBlock"
+    ]
+  },
+  "testingArchitecture": {
+    "unitTests": {
+      "location": "Tests/",
+      "framework": "Catch2",
+      "coverage": [
+        "Tests/OscillatorTests.cpp",
+        "Tests/FilterTests.cpp",
+        "Tests/EnvelopeTests.cpp",
+        "Tests/SlideTests.cpp",
+        "Tests/OverdriveTests.cpp",
+        "Tests/MidiHandlerTests.cpp"
+      ],
+      "target": ">80% code coverage for DSP modules"
+    },
+    "integrationTests": {
+      "location": "Tests/IntegrationTests.cpp",
+      "tests": [
+        "MIDI to audio pipeline",
+        "State save/recall accuracy",
+        "Multi-instance stability",
+        "Parameter automation"
+      ]
+    },
+    "manualTests": {
+      "tools": ["JUCE AudioPluginHost", "Ableton Live", "Logic Pro"],
+      "validation": ["Sound quality", "UI responsiveness", "CPU usage"]
+    }
+  },
+  "buildArchitecture": {
+    "buildSystem": "CMake 3.22+",
+    "targets": {
+      "mac": {
+        "formats": ["VST3", "AU"],
+        "generator": "Xcode or Unix Makefiles",
+        "compiler": "Apple Clang"
+      },
+      "windows": {
+        "formats": ["VST3"],
+        "generator": "Visual Studio 17 2022",
+        "compiler": "MSVC"
+      }
+    },
+    "configurations": ["Debug", "Release", "RelWithDebInfo"],
+    "outputs": {
+      "mac": {
+        "VST3": "~/Library/Audio/Plug-Ins/VST3/TBStyleBassline.vst3",
+        "AU": "~/Library/Audio/Plug-Ins/Components/TBStyleBassline.component"
+      },
+      "windows": {
+        "VST3": "C:/Program Files/Common Files/VST3/TBStyleBassline.vst3"
+      }
+    }
+  }
+}
