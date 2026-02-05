@@ -334,8 +334,21 @@ MicroAcid303AudioProcessorEditor::MicroAcid303AudioProcessorEditor (MicroAcid303
     //==============================================================================
     // OSCILLATOR SECTION
 
+    // Add all 12 waveform items
+    m_waveformSelector.addItem("Saw", 1);
+    m_waveformSelector.addItem("Square", 2);
+    m_waveformSelector.addItem("Triangle", 3);
+    m_waveformSelector.addItem("Sine", 4);
+    m_waveformSelector.addItem("Pulse 25%", 5);
+    m_waveformSelector.addItem("Pulse 12%", 6);
+    m_waveformSelector.addItem("SuperSaw", 7);
+    m_waveformSelector.addItem("Noise", 8);
+    m_waveformSelector.addItem("Saw+Sqr", 9);
+    m_waveformSelector.addItem("Tri+Saw", 10);
+    m_waveformSelector.addItem("Sync", 11);
+    m_waveformSelector.addItem("FM", 12);
     addAndMakeVisible(m_waveformSelector);
-    m_waveformSelector.setTooltip("Select waveform: Sawtooth or Square");
+    m_waveformSelector.setTooltip("Select waveform: 12 different waveforms including classic 303 Saw and Square");
     m_waveformAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(
         m_audioProcessor.getValueTreeState(), MicroAcidParameters::IDs::WAVEFORM, m_waveformSelector);
 
@@ -450,8 +463,14 @@ MicroAcid303AudioProcessorEditor::MicroAcid303AudioProcessorEditor (MicroAcid303
     m_driveValueLabel.setFont(juce::Font(juce::FontOptions(11.0f)));
     addAndMakeVisible(m_driveValueLabel);
 
+    // Add all 5 overdrive modes
+    m_driveModeSelector.addItem("Soft", 1);
+    m_driveModeSelector.addItem("Classic", 2);
+    m_driveModeSelector.addItem("Saturated", 3);
+    m_driveModeSelector.addItem("Fuzz", 4);
+    m_driveModeSelector.addItem("Tape", 5);
     addAndMakeVisible(m_driveModeSelector);
-    m_driveModeSelector.setTooltip("Drive mode: Soft, Classic, or Saturated");
+    m_driveModeSelector.setTooltip("Drive mode: Soft (tube), Classic (303), Saturated, Fuzz, Tape");
     m_driveModeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(
         m_audioProcessor.getValueTreeState(), MicroAcidParameters::IDs::DRIVE_MODE, m_driveModeSelector);
 
@@ -461,8 +480,17 @@ MicroAcid303AudioProcessorEditor::MicroAcid303AudioProcessorEditor (MicroAcid303
     //==============================================================================
     // EFFECTS SECTION
 
+    // Add all 8 effect types
+    m_fxTypeSelector.addItem("Tape Dly", 1);
+    m_fxTypeSelector.addItem("Digi Dly", 2);
+    m_fxTypeSelector.addItem("PingPong", 3);
+    m_fxTypeSelector.addItem("Reverb", 4);
+    m_fxTypeSelector.addItem("Chorus", 5);
+    m_fxTypeSelector.addItem("Flanger", 6);
+    m_fxTypeSelector.addItem("Phaser", 7);
+    m_fxTypeSelector.addItem("Bitcrush", 8);
     addAndMakeVisible(m_fxTypeSelector);
-    m_fxTypeSelector.setTooltip("Effects type: Tape Delay, Digital Delay, or Reverb");
+    m_fxTypeSelector.setTooltip("Effects: Tape Delay, Digital Delay, Ping Pong, Reverb, Chorus, Flanger, Phaser, Bitcrush");
     m_fxTypeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(
         m_audioProcessor.getValueTreeState(), MicroAcidParameters::IDs::FX_TYPE, m_fxTypeSelector);
 
@@ -514,16 +542,35 @@ MicroAcid303AudioProcessorEditor::MicroAcid303AudioProcessorEditor (MicroAcid303
     m_arpEnabledAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
         m_audioProcessor.getValueTreeState(), MicroAcidParameters::IDs::ARP_ENABLED, m_arpEnabledButton);
 
+    // Add all 7 arpeggiator modes
+    m_arpModeSelector.addItem("Up", 1);
+    m_arpModeSelector.addItem("Down", 2);
+    m_arpModeSelector.addItem("Up/Down", 3);
+    m_arpModeSelector.addItem("Down/Up", 4);
+    m_arpModeSelector.addItem("Random", 5);
+    m_arpModeSelector.addItem("Order", 6);
+    m_arpModeSelector.addItem("Chord", 7);
     addAndMakeVisible(m_arpModeSelector);
-    m_arpModeSelector.setTooltip("Arpeggiator mode: Up, Down, Up/Down, Random, etc.");
+    m_arpModeSelector.setTooltip("Arpeggiator mode: Up, Down, Up/Down, Down/Up, Random, Order, Chord");
     m_arpModeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(
         m_audioProcessor.getValueTreeState(), MicroAcidParameters::IDs::ARP_MODE, m_arpModeSelector);
 
     setupLabel(m_arpModeLabel, "MODE");
     addAndMakeVisible(m_arpModeLabel);
 
+    // Add all 10 note divisions
+    m_arpDivisionSelector.addItem("1/1", 1);
+    m_arpDivisionSelector.addItem("1/2", 2);
+    m_arpDivisionSelector.addItem("1/4", 3);
+    m_arpDivisionSelector.addItem("1/8", 4);
+    m_arpDivisionSelector.addItem("1/16", 5);
+    m_arpDivisionSelector.addItem("1/32", 6);
+    m_arpDivisionSelector.addItem("1/4D", 7);
+    m_arpDivisionSelector.addItem("1/8D", 8);
+    m_arpDivisionSelector.addItem("1/4T", 9);
+    m_arpDivisionSelector.addItem("1/8T", 10);
     addAndMakeVisible(m_arpDivisionSelector);
-    m_arpDivisionSelector.setTooltip("Note division: 1/4, 1/8, 1/16, etc.");
+    m_arpDivisionSelector.setTooltip("Note division: whole, half, quarter, eighth, sixteenth, dotted, triplet");
     m_arpDivisionAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(
         m_audioProcessor.getValueTreeState(), MicroAcidParameters::IDs::ARP_DIVISION, m_arpDivisionSelector);
 
